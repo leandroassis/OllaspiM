@@ -1,0 +1,14 @@
+{
+    "EN.III.1.1.01": {
+        "descricao": "Verificar se a documentação inclui uma ``lista de componentes principais'' que descreve todos componentes de \textit{hardware}, \textit{software} e \textit{firmware} do módulo criptográfico. Verificar se a ``lista de componentes principais'' inclui, mas não se limita aos seguintes tipos de componentes: Processadores, incluindo microprocessadores, processadores de sinal digital, processadores  personalizados/dedicados, microcontroladores, ou quaisquer outros tipos de processadores; Circuitos integrados de memória ROM (Read Only Memory) para código executável de programas e dados [tal item pode incluir MPROM (Mask-Programmed ROM), PROM (Programmable ROM), EPROM (Erasable PROM), EEPROM (Electrically Erasable PROM) ou FLASH]; Circuitos integrados de memória RAM (Random Access Memory) para armazenamento de dados temporários; Circuitos integrados semi dedicado (semi-custom) de aplicação específica, tais como, gate arrays, programmable logic arrays, field programmable gate arrays, ou outros dispositivos lógicos programáveis; Circuitos integrados totalmente dedicados (fully custom) e de aplicação específica, incluindo quaisquer circuitos integrados criptográficos e dedicados; Outros elementos ativos de circuito eletrônico (a documentação não deve listar elementos passivos de circuito eletrônico, tais como, resistores pull up/pull down ou capacitores bypass se eles não desempenharem um papel significativo na segurança do módulo criptográfico e não estiverem na fronteira criptográfica; Componentes de fornecimento de energia, incluindo alimentação (power supply), módulos de conversão de voltagem (por exemplo: módulos AC-DC ou DC-DC), transformadores, conectores de entrada de energia e conectores de saída de energia; Placa de circuito impresso ou outras superfícies de montagem de componentes; Encapsulamentos/revestimentos, incluindo quaisquer portas de acesso removíveis ou coberturas/camadas; Conectores físicos para dispositivos externos ao módulo criptográfico, ou entre quaisquer submódulos independentes do módulo principal; Módulos de software/firmware que são modificáveis; Módulos de software/firmware que não são modificáveis; Outros tipos de componentes que não estão listados acima.",
+        "tipo_avaliacao": "Documental",
+        "automatizavel": "Sim",
+        "justificativa": "Análise puramente documental de diagramas e listas de componentes principal."
+    },
+    "EN.III.1.2.01": {
+        "descricao": "Verificar layout interno, encapsulamento e características físicas do MSC.",
+        "tipo_avaliacao": "Documental",
+        "automatizavel": "Não",
+        "justificativa": "Inspeção de manuais de engenharia e desenho de hardware."
+    }
+}
