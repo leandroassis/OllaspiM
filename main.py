@@ -2,6 +2,7 @@ import sys
 import shutil
 import json
 from pathlib import Path
+import pypdfium2 as pdfium
 
 from src.cli.parser import get_config
 from src.utils.logger import logger
@@ -14,6 +15,40 @@ from src.worker.orchestrator import WorkerOrchestrator
 from src.rag.hybrid_retriever import HybridRetriever
 from src.rag.generator import ReportGenerator
 from src.llm.ollama_client import OllamaClient
+
+MAX_FILE_SIZE = 20 * 1024 * 1024
+
+def preprocess_file(file_path: Path) -> Path:
+    """Verifica tamanho e trunca PDFs maiores que 700 paginas. Retorna novo Path ou None."""
+    try:
+        if file_path.stat().st_size > MAX_FILE_SIZE:
+            logger.warning(f"Arquivo ignorado por exceder 20MB: {file_path}")
+            return None
+    except Exception as e:
+        logger.warning(f"Erro ao verificar tamanho de {file_path}: {e}")
+        return None
+        
+    if file_path.suffix.lower() == ".pdf":
+        try:
+            pdf = pdfium.PdfDocument(file_path)
+            if len(pdf) > 700:
+                logger.warning(f"PDF com mais de 700 paginas, truncando: {file_path}")
+                new_pdf = pdfium.PdfDocument.new()
+                new_pdf.import_pages(pdf, list(range(700)))
+                
+                truncated_path = file_path.with_name(f"{file_path.stem}_truncated.pdf")
+                new_pdf.save(str(truncated_path))
+                new_pdf.close()
+                pdf.close()
+                
+                file_path.unlink() # exclui o original
+                return truncated_path
+            else:
+                pdf.close()
+        except Exception as e:
+            logger.warning(f"Erro ao processar PDF com pypdfium2: {file_path}. Detalhes: {e}")
+            
+    return file_path
 
 def main():
     logger.info("Iniciando LaspiLM...")
@@ -52,16 +87,20 @@ def main():
             logger.info("Processando Documentação...")
             for doc_file in config["docs"].rglob("*"):
                 if doc_file.is_file():
+                    processed_file = preprocess_file(doc_file)
+                    if not processed_file:
+                        continue
+                        
                     content = ""
-                    if doc_file.suffix.lower() == ".pdf":
-                        res = docling_parser.parse(doc_file)
+                    if processed_file.suffix.lower() == ".pdf":
+                        res = docling_parser.parse(processed_file)
                         content = res["content"]
-                    elif doc_file.suffix.lower() in [".xlsx", ".docx", ".csv"]:
-                        res = markitdown_parser.parse(doc_file)
+                    elif processed_file.suffix.lower() in [".xlsx", ".docx", ".csv"]:
+                        res = markitdown_parser.parse(processed_file)
                         content = res["content"]
                     
                     if content:
-                        safe_name = f"doc_{doc_file.name}.md"
+                        safe_name = f"doc_{processed_file.name}.md"
                         out_path = graphify_input_dir / safe_name
                         out_path.write_text(content, encoding="utf-8")
                         manifest.append({"file": str(out_path), "source_file": safe_name, "collection": "documentation"})
@@ -70,30 +109,39 @@ def main():
             logger.info("Processando Relatórios Legados (Apenas Vetorial)...")
             for past_file in config["past"].rglob("*.pdf"):
                 if past_file.is_file():
-                    res = docling_parser.parse(past_file)
-                    safe_name = f"past_{past_file.name}.md"
+                    processed_file = preprocess_file(past_file)
+                    if not processed_file:
+                        continue
+                        
+                    res = docling_parser.parse(processed_file)
+                    safe_name = f"past_{processed_file.name}.md"
                     out_path = vector_only_dir / safe_name
                     out_path.write_text(res["content"], encoding="utf-8")
-                    manifest.append({"file": str(out_path), "source_file": past_file.name, "collection": "legacy_reports"})
+                    manifest.append({"file": str(out_path), "source_file": processed_file.name, "collection": "legacy_reports"})
 
             # 3. Process Code
             logger.info("Processando Código Fonte e copiando originais...")
             for code_file in config["code"].rglob("*"):
                 if code_file.is_file():
+                    processed_file = preprocess_file(code_file)
+                    if not processed_file:
+                        continue
+                        
                     # Copy raw file to .graphify_input
-                    shutil.copy2(code_file, graphify_input_dir / code_file.name)
+                    shutil.copy2(processed_file, graphify_input_dir / processed_file.name)
                     
                     # Parse and enrich code
-                    try:
-                        res = code_parser.parse(code_file)
-                        for func in res.get("functions", []):
-                            md_content = enricher.enrich_function(str(code_file.name), func)
-                            safe_name = f"code_desc_{code_file.name}_lines_{func.get('lines', 'unknown')}.md"
-                            out_path = graphify_input_dir / safe_name
-                            out_path.write_text(md_content, encoding="utf-8")
-                            manifest.append({"file": str(out_path), "source_file": safe_name, "collection": "documentation"})
-                    except Exception as e:
-                        logger.warning(f"Erro ao fazer parse do código {code_file}: {e}")
+                    if not getattr(args, 'skip_code_llm', False):
+                        try:
+                            res = code_parser.parse(processed_file)
+                            for func in res.get("functions", []):
+                                md_content = enricher.enrich_function(str(processed_file.name), func)
+                                safe_name = f"code_desc_{processed_file.name}_lines_{func.get('lines', 'unknown')}.md"
+                                out_path = graphify_input_dir / safe_name
+                                out_path.write_text(md_content, encoding="utf-8")
+                                manifest.append({"file": str(out_path), "source_file": safe_name, "collection": "documentation"})
+                        except Exception as e:
+                            logger.warning(f"Erro ao fazer parse do código {processed_file}: {e}")
 
             # Save manifest in root to avoid graphify scanning it
             with open(manifest_path, "w", encoding="utf-8") as f:
