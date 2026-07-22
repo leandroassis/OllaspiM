@@ -28,15 +28,16 @@ class ReportGenerator:
         # FASE 5a: Análise Técnica Pura (Projeto)
         prompt_5a = f"""
 Você é um auditor de validação de sistemas embarcados.
-Responda tecnicamente ao objetivo do Ensaio baseando-se EXCLUSIVAMENTE nos trechos de código e manuais recuperados do sistema abaixo.
+Sua missão é redigir um ÚNICO texto dissertativo coeso avaliando se o equipamento atende ao Objetivo do Ensaio. 
+Para isso, você deve obrigatoriamente correlacionar os fragmentos de código e manuais fornecidos abaixo de forma explícita com o contexto do objetivo do teste.
 
 ID do Ensaio: {test_id}
 Objetivo: {test_description}
 
-=== DADOS DO PROJETO (Restritos via Grafo) ===
+=== DADOS DO PROJETO (Restritos via Grafo e Limitados a 10 Chunks) ===
 {projeto_ctx}
 
-Redija uma avaliação técnica detalhada. CITE explicitamente o nome de cada arquivo (usando a tag [Arquivo Origem: X]) que baseou sua conclusão.
+Redija sua análise técnica no formato de uma dissertação única e fluida. CITE explicitamente o nome de cada arquivo (usando a tag [Arquivo Origem: X]) ao longo do seu texto para fundamentar suas conclusões técnicas. Não divida a resposta em tópicos soltos.
 """
         logger.info(f"[{test_id}] Executando Fase 5a (Análise Técnica Pura)...")
         try:
@@ -55,15 +56,15 @@ Sua missão é reescrevê-la no FORMATO FINAL, espelhando o tom de voz, estilo d
 
 ID do Ensaio: {test_id}
 
-=== ANÁLISE TÉCNICA (Base da Conclusão) ===
+=== ANÁLISE TÉCNICA (Única Fonte da Verdade) ===
 {analise_rascunho}
 
-=== PARECERES HISTÓRICOS (MOLDES / PADRÕES PARA IMITAR) ===
+=== PARECERES HISTÓRICOS (Modelos de Escrita) ===
 {legado_ctx}
 
 Redija o parecer final adequando a análise para este padrão institucional.
-MANTENHA RIGOROSAMENTE todas as citações técnicas e tags [Arquivo Origem: X] provenientes da "Análise Técnica".
-NUNCA cite os relatórios legados como fonte de conclusão ou crie novas tags de origem baseadas neles. O relatório legado serve APENAS como modelo de estilo e jargão.
+REGRA ABSOLUTA: O conteúdo técnico, as decisões de conformidade e as citações (tags [Arquivo Origem: X]) devem vir OBRIGATORIAMENTE da "Análise Técnica". 
+Os pareceres históricos fornecidos servem APENAS como gabarito de estilo de escrita e formatação. Sob nenhuma hipótese adicione informações técnicas dos relatórios legados na sua resposta final nem crie referências a eles.
 """
         logger.info(f"[{test_id}] Executando Fase 5b (Adequação aos Padrões Históricos)...")
         try:

@@ -6,6 +6,8 @@ clean:
 	rm -rf .graphify_input
 	rm -rf .vector_only_input
 	rm -f .ingestion_manifest.json
+	rm -rf graphify-out
+	rm -rf .pytest_cache
 	@echo "Limpeza concluída!"
 
 # Roda todos os testes
@@ -16,7 +18,7 @@ test:
 # Roda a conversão
 convert:
 	@echo "Iniciando etapa de conversão..."
-	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --convert
+	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --convert
 
 # Roda a extração do graphify externamente
 graphify-extract:
@@ -28,12 +30,12 @@ graphify-extract:
 # Roda a ingestão vetorial no ChromaDB
 ingestion:
 	@echo "Iniciando etapa de indexação vetorial..."
-	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --ingestion
+	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --ingestion
 
 # Roda o RAG
 run:
 	@echo "Iniciando orquestração RAG híbrido..."
-	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --run
+	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --run
 
 # Executa todo o pipeline sequencialmente
 all: clean convert graphify-extract ingestion run

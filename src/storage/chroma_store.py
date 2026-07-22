@@ -57,7 +57,7 @@ class ChromaStore:
                 from llama_index.core.node_parser import SentenceSplitter
                 
                 if col_name == "legacy_reports":
-                    parser = SentenceSplitter(chunk_size=512, chunk_overlap=20)
+                    parser = SentenceSplitter(chunk_size=256, chunk_overlap=20)
                     nodes = parser.get_nodes_from_documents(llama_docs)
                     # No-Noise Policy: only index chunks that actually contain the final Parecer
                     nodes = [n for n in nodes if "parecer:" in n.text.lower()]

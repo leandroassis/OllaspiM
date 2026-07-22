@@ -109,9 +109,29 @@ class HybridRetriever:
             except Exception:
                 pass
                 
-        # 3. Extrair os source_files da teia expandida
-        expanded_files = set(seed_files)
-        for node in expanded_nodes:
+        # 3. Aplicar PageRank no Subgrafo Expandido para Filtrar a "Elite"
+        subgraph = self.graph.subgraph(expanded_nodes)
+        try:
+            pr_scores = nx.pagerank(subgraph)
+        except Exception as e:
+            # Fallback for unconnected components or convergence issues
+            pr_scores = {node: 1.0 for node in expanded_nodes}
+            logger.warning(f"Erro ao computar PageRank: {e}")
+            
+        # Ordenar os nós pelo score de PageRank
+        ranked_nodes = sorted(pr_scores.keys(), key=lambda n: pr_scores[n], reverse=True)
+        
+        # 4. Extrair os source_files da teia classificada (Limitando aos Top 10)
+        expanded_files = set()
+        
+        # Sempre garantir que os arquivos semente originais estejam inclusos
+        for sf in seed_files:
+            expanded_files.add(sf)
+            
+        for node in ranked_nodes:
+            if len(expanded_files) >= 10:
+                break
+                
             data = self.graph.nodes[node]
             source_file = data.get("source_file")
             if source_file:
@@ -119,7 +139,7 @@ class HybridRetriever:
             elif str(node).count('.') > 0:
                 expanded_files.add(str(node))
                 
-        logger.info(f"Fase Expansão (Graph): Teia expandida para {len(expanded_files)} arquivos: {list(expanded_files)}")
+        logger.info(f"Fase Expansão (Graph com PageRank): Teia classificada e filtrada para {len(expanded_files)} arquivos: {list(expanded_files)}")
         return list(expanded_files)
 
     def retrieve_context(self, test_id: str, test_description: str) -> Tuple[str, str]:
@@ -150,18 +170,27 @@ class HybridRetriever:
             
         project_blocks = []
         try:
-            # Busca mais agressiva (top_k=7) pois já estamos filtrados topologicamente
-            retriever = self.vector_store.get_retriever(collection_name="documentation", top_k=7, filters=filters)
-            nodes = retriever.retrieve(test_description)
-            if nodes:
-                source_files_found = [n.node.metadata.get('source_file', 'unknown') for n in nodes]
-                logger.info(f"Fase 4 (Projeto Refinado): {len(nodes)} chunks recuperados. Arquivos: {source_files_found}")
+            # Fase 4 (Refinada Multi-Query): Busca chunks iterando as entidades
+            retriever = self.vector_store.get_retriever(collection_name="documentation", top_k=3, filters=filters)
+            
+            all_project_nodes = {}
+            for entity in entities:
+                nodes = retriever.retrieve(entity)
+                if nodes:
+                    for n in nodes:
+                        # Deduplicar chunks pelo texto
+                        all_project_nodes[n.node.text] = n
+                        
+            if all_project_nodes:
+                unique_nodes = list(all_project_nodes.values())[:10]
+                source_files_found = list(set([n.node.metadata.get('source_file', 'unknown') for n in unique_nodes]))
+                logger.info(f"Fase 4 (Projeto Refinado Multi-Query): {len(unique_nodes)} chunks recuperados. Arquivos: {source_files_found}")
                 
-                for i, n in enumerate(nodes):
+                for i, n in enumerate(unique_nodes):
                     logger.info(f"--- Chunk Recuperado (Projeto) [{n.node.metadata.get('source_file')}] ---\n{n.node.text[:300]}...")
                 
                 block = f"--- DOCUMENTATION ---\n"
-                block += "\n\n".join([f"[Arquivo Origem: {n.node.metadata.get('source_file', 'desconhecido')}]\n{n.node.text}" for n in nodes])
+                block += "\n\n".join([f"[Arquivo Origem: {n.node.metadata.get('source_file', 'desconhecido')}]\n{n.node.text}" for n in unique_nodes])
                 project_blocks.append(block)
         except Exception as e:
             logger.error(f"Erro ao consultar coleção 'documentation': {e}")
