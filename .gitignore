@@ -2,7 +2,10 @@ kuzu_db/
 chroma_db/
 logs/
 .graphify_input/
-.graphify_output/
+graphify-out/
 .venv
 data/
 .pytest_cache
+.vector_only_input
+
+__pycache__

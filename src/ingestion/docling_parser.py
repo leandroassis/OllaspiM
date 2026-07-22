@@ -22,6 +22,13 @@ class DoclingParser(BaseParser):
         try:
             result = self.converter.convert(str(file_path))
             markdown_content = result.document.export_to_markdown()
+            
+            import re
+            # Pular todo o lixo do preâmbulo (índices, metodologias) antes do primeiro "Parecer:"
+            match = re.search(r'(?i)parecer\s*:(.*)', markdown_content, re.DOTALL)
+            if match:
+                markdown_content = "Parecer:" + match.group(1)
+                
             return {
                 "source": str(file_path),
                 "type": "document",

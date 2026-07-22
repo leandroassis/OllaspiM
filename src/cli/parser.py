@@ -14,6 +14,10 @@ def parse_args(args=None) -> argparse.Namespace:
     parser.add_argument("--past", type=str, required=True, help="Caminho do diretório de relatórios legados.")
     parser.add_argument("--tests", type=str, required=True, help="Caminho do arquivo .txt contendo a lista de ensaios a executar.")
     
+    parser.add_argument("--convert", action="store_true", help="Executa a etapa de conversão de documentos e extração de código (Gera os .md).")
+    parser.add_argument("--ingestion", action="store_true", help="Executa a ingestão dos dados convertidos no ChromaDB.")
+    parser.add_argument("--run", action="store_true", help="Executa a filtragem topológica e o RAG para os testes definidos.")
+    
     return parser.parse_args(args)
 
 def validate_paths(args: argparse.Namespace) -> Dict[str, Path]:

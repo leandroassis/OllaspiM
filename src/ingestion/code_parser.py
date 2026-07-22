@@ -141,7 +141,32 @@ class CodeParser(BaseParser):
             end_line = node.end_point.row + 1
             source_code = code_bytes[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
             
+            # Tentar extrair o nome da função pelo AST
+            func_name = "UnknownFunction"
+            name_node = node.child_by_field_name('name')
+            
+            if name_node:
+                func_name = code_bytes[name_node.start_byte:name_node.end_byte].decode("utf-8", errors="replace")
+            else:
+                # Fallback para C/C++ onde o nome fica dentro de declarator
+                declarator = node.child_by_field_name('declarator')
+                while declarator and declarator.type != 'identifier' and hasattr(declarator, 'child_by_field_name'):
+                    child_decl = declarator.child_by_field_name('declarator')
+                    if not child_decl:
+                        break
+                    declarator = child_decl
+                    
+                if declarator and getattr(declarator, 'type', '') == 'identifier':
+                    func_name = code_bytes[declarator.start_byte:declarator.end_byte].decode("utf-8", errors="replace")
+                else:
+                    # Regex fallback na assinatura da função
+                    import re
+                    match = re.search(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(', source_code)
+                    if match and match.group(1) not in ["if", "while", "for", "switch", "return"]:
+                        func_name = match.group(1)
+            
             functions.append({
+                "name": func_name,
                 "lines": f"{start_line}-{end_line}",
                 "codigo_fonte_bruto": source_code
             })

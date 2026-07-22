@@ -3,11 +3,14 @@ from src.cli.parser import parse_args, validate_paths
 from src.utils.exceptions import PathNotFoundException
 
 def test_parse_args_valid():
-    args = parse_args(["--docs", "d", "--code", "c", "--past", "p", "--tests", "t"])
+    args = parse_args(["--docs", "d", "--code", "c", "--past", "p", "--tests", "t", "--convert"])
     assert args.docs == "d"
     assert args.code == "c"
     assert args.past == "p"
     assert args.tests == "t"
+    assert args.convert is True
+    assert args.ingestion is False
+    assert args.run is False
 
 def test_parse_args_missing():
     with pytest.raises(SystemExit):

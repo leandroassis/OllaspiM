@@ -1,51 +1,31 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from src.llm.ollama_client import OllamaClient
-from src.llm.schemas import CodeFunctionMetadata
 from src.ingestion.code_enricher import CodeEnricher
 
-@patch("src.llm.ollama_client.instructor.from_openai")
 @patch("src.llm.ollama_client.OpenAI")
-def test_ollama_client(mock_openai, mock_from_openai):
-    mock_instructor_client = MagicMock()
-    mock_from_openai.return_value = mock_instructor_client
+def test_ollama_client_generate(mock_openai):
+    mock_raw_client = MagicMock()
+    mock_openai.return_value = mock_raw_client
+    mock_choice = MagicMock()
+    mock_choice.message.content = "Mocked LLM Markdown Response"
+    mock_raw_client.chat.completions.create.return_value = MagicMock(choices=[mock_choice])
     
-    expected_response = CodeFunctionMetadata(
-        nome_funcao="check_mancal_temp",
-        arquivo="test.cpp",
-        linhas="10-20",
-        resumo_linguagem_natural="Test",
-        logica_de_negocio=["Step 1"],
-        condicoes_de_borda_e_limites="None",
-        funcoes_chamadas=["read"],
-        codigo_fonte_bruto="void check_mancal_temp() {}"
-    )
+    # Needs to patch instructor as well because __init__ uses it
+    with patch("src.llm.ollama_client.instructor.from_openai"):
+        client = OllamaClient()
+        res = client.generate("prompt")
     
-    mock_instructor_client.chat.completions.create.return_value = expected_response
-    
-    client = OllamaClient()
-    res = client.generate_structured("prompt", CodeFunctionMetadata)
-    
-    assert res.nome_funcao == "check_mancal_temp"
-    assert res.arquivo == "test.cpp"
+    assert res == "Mocked LLM Markdown Response"
 
 def test_code_enricher():
     mock_llm = MagicMock()
-    mock_llm.generate_structured.return_value = CodeFunctionMetadata(
-        nome_funcao="mocked",
-        arquivo="ignored",
-        linhas="ignored",
-        resumo_linguagem_natural="Resumo",
-        logica_de_negocio=[],
-        condicoes_de_borda_e_limites="",
-        funcoes_chamadas=[],
-        codigo_fonte_bruto="ignored"
-    )
+    mock_llm.generate.return_value = "Mocked Markdown Context"
     
     enricher = CodeEnricher(llm_client=mock_llm)
-    res = enricher.enrich_function("real_file.py", {"lines": "1-5", "codigo_fonte_bruto": "def a(): pass"})
+    res = enricher.enrich_function("real_file.py", {"lines": "1-5", "codigo_fonte_bruto": "def a(): pass", "name": "a"})
     
-    assert res.arquivo == "real_file.py"
-    assert res.linhas == "1-5"
-    assert res.codigo_fonte_bruto == "def a(): pass"
-    assert res.nome_funcao == "mocked"
+    assert "real_file.py" in res
+    assert "1-5" in res
+    assert "a" in res
+    assert "Mocked Markdown Context" in res
