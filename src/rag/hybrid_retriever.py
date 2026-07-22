@@ -39,81 +39,109 @@ class HybridRetriever:
         return G
 
     def _extract_entities(self, text: str) -> List[str]:
-        """Fase 2: Extrai termos-chave usando a LLM."""
+        """Fase 2a: Extrai termos-chave usando a LLM para evitar diluição na busca vetorial."""
         prompt = (
-            f"Extraia os termos-chave mais importantes, nomes de arquivos, ou conceitos do seguinte texto.\n"
-            f"Retorne APENAS uma lista de palavras separadas por vírgula.\n\nTexto: {text}"
+            f"Extraia os componentes, requisitos técnicos e nomes de testes fundamentais do seguinte objetivo.\n"
+            f"Retorne APENAS uma lista curta de palavras-chave separadas por vírgula.\n\nObjetivo: {text}"
         )
-        res = self.llm.generate(prompt)
-        return [t.strip() for t in res.split(",") if t.strip()]
+        try:
+            res = self.llm.generate(prompt)
+            entities = [t.strip() for t in res.split(",") if t.strip()]
+            return entities if entities else [text]
+        except Exception as e:
+            logger.error(f"Erro ao extrair entidades: {e}")
+            return [text]
 
-    def _get_topological_identifiers(self, entities: List[str]) -> List[str]:
-        """Fase 3: Consulta Topológica. Retorna lista de source_files restritos."""
-        import re
-        if not self.graph.nodes:
-            return []
+    def _get_seed_files(self, entities: List[str]) -> List[str]:
+        """Fase Inicial (Vector): Multi-Query no ChromaDB para encontrar os source_files para cada entidade."""
+        seed_files = set()
+        try:
+            for entity in entities:
+                # Top 2 para CADA entidade independente
+                retriever = self.vector_store.get_retriever(collection_name="documentation", top_k=2, filters=None)
+                nodes = retriever.retrieve(entity)
+                for n in nodes:
+                    source_file = n.node.metadata.get("source_file")
+                    if source_file:
+                        seed_files.add(source_file)
+            logger.info(f"Fase Semente (Vector Multi-Query): Encontrados {len(seed_files)} arquivos iniciais para {len(entities)} entidades: {list(seed_files)}")
+        except Exception as e:
+            logger.error(f"Erro na busca semente: {e}")
+        return list(seed_files)
+
+    def _expand_topology(self, seed_files: List[str]) -> List[str]:
+        """Fase Intermediária (Graph): Expande a lista de arquivos via vizinhança e comunidades no Grafo."""
+        if not self.graph.nodes or not seed_files:
+            return seed_files
             
-        root_nodes = set()
-        entities_lower = [e.lower() for e in entities]
+        seed_nodes = set()
+        seed_communities = set()
         
-        # Busca de Raiz (Robust Substring Matching)
+        # 1. Identificar nós no grafo que correspondem aos seed_files
         for node, data in self.graph.nodes(data=True):
-            node_text = (str(data.get("label", "")) + " " + str(data.get("properties", "")) + " " + str(node)).lower()
+            source_file = data.get("source_file", "")
+            node_id = str(node)
             
-            for e in entities_lower:
-                if e in node_text or node_text in e:
-                    root_nodes.add(node)
-                    break
-                # Check individual words > 4 chars for robust morphological match
-                e_words = [w for w in re.split(r'\W+', e) if len(w) > 4]
-                n_words = [w for w in re.split(r'\W+', node_text) if len(w) > 4]
-                if any(ew in nw or nw in ew for ew in e_words for nw in n_words):
-                    root_nodes.add(node)
-                    break
+            # Checagem se o nó representa o arquivo semente
+            if source_file in seed_files or any(sf in node_id for sf in seed_files):
+                seed_nodes.add(node)
+                community = data.get("community")
+                if community is not None:
+                    seed_communities.add(community)
+                    
+        logger.info(f"Fase Expansão (Graph): Identificados {len(seed_nodes)} nós raiz e comunidades {list(seed_communities)}.")
+        
+        # 2. Expandir: Pegar todos os nós da mesma comunidade e vizinhos diretos (Depth=1)
+        expanded_nodes = set(seed_nodes)
+        
+        for node, data in self.graph.nodes(data=True):
+            # Se for da mesma comunidade, puxa junto
+            if data.get("community") in seed_communities:
+                expanded_nodes.add(node)
                 
-        # Travessia de Vizinhança (Profundidade 1 e 2)
-        neighborhood = set(root_nodes)
-        for root in root_nodes:
-            # Vizinhos diretos e indiretos (undirected path logic for relatedness)
-            undirected_G = self.graph.to_undirected()
+        # Adicionar vizinhos diretos (1 pulo) dos nós raiz
+        undirected_G = self.graph.to_undirected()
+        for root in seed_nodes:
             try:
-                edges = nx.single_source_shortest_path_length(undirected_G, root, cutoff=2)
+                edges = nx.single_source_shortest_path_length(undirected_G, root, cutoff=1)
                 for neighbor in edges.keys():
-                    neighborhood.add(neighbor)
+                    expanded_nodes.add(neighbor)
             except Exception:
                 pass
                 
-        # Extração de Identificadores
-        identifiers = set()
-        for node in neighborhood:
+        # 3. Extrair os source_files da teia expandida
+        expanded_files = set(seed_files)
+        for node in expanded_nodes:
             data = self.graph.nodes[node]
             source_file = data.get("source_file")
-            # Fallback for ID if source_file not present but matches a file pattern
-            if not source_file and str(node).count('.') > 0:
-                source_file = str(node)
             if source_file:
-                identifiers.add(source_file)
+                expanded_files.add(source_file)
+            elif str(node).count('.') > 0:
+                expanded_files.add(str(node))
                 
-        logger.info(f"Fase 3 (Filtro Topológico): Encontrados {len(identifiers)} source_files restritivos na vizinhança: {list(identifiers)}")
-        return list(identifiers)
+        logger.info(f"Fase Expansão (Graph): Teia expandida para {len(expanded_files)} arquivos: {list(expanded_files)}")
+        return list(expanded_files)
 
     def retrieve_context(self, test_id: str, test_description: str) -> Tuple[str, str]:
         """
-        Executa as Fases 2, 3 e 4 do pipeline híbrido sequencial.
+        Executa o pipeline Vector -> Graph -> Vector.
         Retorna (project_context, legacy_context)
         """
-        logger.info(f"Iniciando Recuperação Híbrida para: {test_description}")
+        logger.info(f"Iniciando Recuperação Híbrida para: {test_id}")
         
-        # Fase 2
+        # Fase 2a: Multi-Query Entities
         entities = self._extract_entities(test_description)
-        logger.debug(f"Entidades extraídas: {entities}")
+        logger.debug(f"Fase Multi-Query Entidades: {entities}")
         
-        # Fase 3
-        identifiers = self._get_topological_identifiers(entities)
+        # 1. Vector Search (Seed Multi-Query)
+        seed_files = self._get_seed_files(entities)
         
-        # Fase 4: Recuperação Semântica com Restrição
+        # 2. Graph Expansion
+        identifiers = self._expand_topology(seed_files)
+        
+        # 3. Vector Search (Refined)
         if not identifiers:
-            logger.warning("Nenhum identificador encontrado no grafo. Tentando busca sem filtro restritivo.")
+            logger.warning("Nenhum identificador encontrado no grafo ou semente. Tentando busca sem filtro restritivo.")
             filters = None
         else:
             filters = MetadataFilters(
@@ -121,33 +149,32 @@ class HybridRetriever:
             )
             
         project_blocks = []
-        for collection in ["documentation"]:
-            try:
-                retriever = self.vector_store.get_retriever(collection_name=collection, top_k=3, filters=filters)
-                nodes = retriever.retrieve(test_description)
-                if nodes:
-                    source_files_found = [n.node.metadata.get('source_file', 'unknown') for n in nodes]
-                    logger.info(f"Fase 4 (Projeto): {len(nodes)} chunks recuperados em '{collection}'. Arquivos: {source_files_found}")
-                    
-                    for i, n in enumerate(nodes):
-                        logger.info(f"--- Chunk Recuperado ({collection}) [{n.node.metadata.get('source_file')}] ---\n{n.node.text[:300]}...")
-                    
-                    block = f"--- {collection.upper()} ---\n"
-                    # Format chunk tightly linking the source_file metadata
-                    block += "\n\n".join([f"[Arquivo Origem: {n.node.metadata.get('source_file', 'desconhecido')}]\n{n.node.text}" for n in nodes])
-                    project_blocks.append(block)
-            except Exception as e:
-                logger.error(f"Erro ao consultar coleção '{collection}': {e}")
+        try:
+            # Busca mais agressiva (top_k=7) pois já estamos filtrados topologicamente
+            retriever = self.vector_store.get_retriever(collection_name="documentation", top_k=7, filters=filters)
+            nodes = retriever.retrieve(test_description)
+            if nodes:
+                source_files_found = [n.node.metadata.get('source_file', 'unknown') for n in nodes]
+                logger.info(f"Fase 4 (Projeto Refinado): {len(nodes)} chunks recuperados. Arquivos: {source_files_found}")
+                
+                for i, n in enumerate(nodes):
+                    logger.info(f"--- Chunk Recuperado (Projeto) [{n.node.metadata.get('source_file')}] ---\n{n.node.text[:300]}...")
+                
+                block = f"--- DOCUMENTATION ---\n"
+                block += "\n\n".join([f"[Arquivo Origem: {n.node.metadata.get('source_file', 'desconhecido')}]\n{n.node.text}" for n in nodes])
+                project_blocks.append(block)
+        except Exception as e:
+            logger.error(f"Erro ao consultar coleção 'documentation': {e}")
                 
         legacy_blocks = []
-        # Legacy reports: search using test_id and entities to guarantee tight relevance
-        query_legado = f"Ensaio ID: {test_id}. Entidades: {' '.join(entities)}. {test_description}"
+        # Legacy reports: search using test_id and test_description natively
+        query_legado = f"Ensaio ID: {test_id}. {test_description}"
         try:
             retriever_legacy = self.vector_store.get_retriever(collection_name="legacy_reports", top_k=3)
             legacy_nodes = retriever_legacy.retrieve(query_legado)
             if legacy_nodes:
                 source_files_found = [n.node.metadata.get('source_file', 'unknown') for n in legacy_nodes]
-                logger.info(f"Fase 4 (Legado): {len(legacy_nodes)} chunks recuperados com query '{query_legado[:50]}...'. Arquivos: {source_files_found}")
+                logger.info(f"Fase 4 (Legado): {len(legacy_nodes)} chunks recuperados. Arquivos: {source_files_found}")
                 
                 for i, n in enumerate(legacy_nodes):
                     logger.info(f"--- Chunk Recuperado (Legado) [{n.node.metadata.get('source_file')}] ---\n{n.node.text[:300]}...")

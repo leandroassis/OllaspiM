@@ -58,12 +58,15 @@ class ChromaStore:
                 
                 if col_name == "legacy_reports":
                     parser = SentenceSplitter(chunk_size=512, chunk_overlap=20)
+                    nodes = parser.get_nodes_from_documents(llama_docs)
+                    # No-Noise Policy: only index chunks that actually contain the final Parecer
+                    nodes = [n for n in nodes if "parecer:" in n.text.lower()]
                 else:
                     parser = SentenceSplitter(chunk_size=512, chunk_overlap=25)
+                    nodes = parser.get_nodes_from_documents(llama_docs)
                     
-                nodes = parser.get_nodes_from_documents(llama_docs)
                 index.insert_nodes(nodes)
-                logger.info(f"Adicionados {len(nodes)} chunks (tam={parser.chunk_size}) para {len(llama_docs)} docs na coleção '{col_name}'.")
+                logger.info(f"Adicionados {len(nodes)} chunks limpos (tam={parser.chunk_size}) para {len(llama_docs)} docs na coleção '{col_name}'.")
             except Exception as e:
                 logger.error(f"Erro ao adicionar na coleção {col_name}: {e}")
                 raise

@@ -71,38 +71,24 @@ python main.py --docs ./caminho/documentacao               --code ./caminho/codi
 ### Etapa 2: Processamento e Estruturação de Dados
 
 #### 2.0. Análise de Código-Fonte (`TreeSitter` + `CodeLLM`)
-1. O `TreeSitter` lê cada arquivo de código (`.c`, `.cpp`, `.h`, `.hpp`, `.py`, etc.) e identifica o intervalo exato de linhas de cada função.
-2. Cada bloco de função fatiado é enviado para a `CodeLLM` utilizando `Pydantic` com suporte a *Structured Output*:
-
-```json
-{
-  "nome_funcao": "check_mancal_temp",
-  "arquivo": "src/drivers/mancal.cpp",
-  "linhas": "45-78",
-  "resumo_linguagem_natural": "Verifica se a temperatura do mancal ultrapassa o limite máximo e aciona o alarme de emergência.",
-  "logica_de_negocio": [
-    "Lê o valor do registrador analógico TEMP_REG_01",
-    "Compara com o threshold codificado em rígido (90.0 C)",
-    "Se exceder, altera o bit de status da flag ERR_OVERHEAT_02 para HIGH"
-  ],
-  "condicoes_de_borda_e_limites": "Define o limite fixo em 90.0. Não possui tratamento para sensor desconectado (retorno NaN).",
-  "funcoes_chamadas": ["read_register", "set_alarm_flag"],
-  "codigo_fonte_bruto": "bool check_mancal_temp(...) { ... }"
-}
-```
+1. O `TreeSitter` lê cada arquivo de código (`.c`, `.cpp`, etc.), identifica o intervalo exato de linhas de cada função e **extrai o nome nativo da função navegando pela árvore sintática (AST)**.
+2. Cada bloco de função fatiado é enviado para a `CodeLLM` utilizando `Pydantic` com suporte a *Structured Output* para gerar um descritivo semântico em JSON.
+3. Esse JSON é transmutado em um artefato `.md` (ex: `code_desc_kryptus.c_lines_30-40.md`) e associado logicamente à coleção global de `documentation`, unificando manuais e código no mesmo ecossistema vetorial.
 
 #### 2.1. Análise da Documentação Técnica
-* **Arquivos PDF (`.pdf`):** Convertidos via **Docling** para `.md`, preservando a estrutura de tabelas e a numeração das páginas (enriquecidos com marcadores de rastreabilidade - documento, seção, página).
+* **Arquivos PDF (`.pdf`):** Convertidos via **Docling** para `.md`, preservando a estrutura de tabelas e a numeração das páginas.
 * **Arquivos do Office/Tabelas (`.docx`, `.xlsx`, `.csv`, `.doc`, `.xls`):** Convertidos via **MarkItDown** para `.md`.
-* **Arquivos Descartados:** Arquivos de imagens e extensões de código-fonte são ignorados na pasta `--docs` para evitar duplicação.
+* **Arquivos Descartados:** Imagens e binários sem suporte são sumariamente ignorados.
 
 #### 2.2. Análise dos Relatórios Históricos Legados
-* PDFs na pasta `--past` são processados pelo **Docling** para extração de Markdown enriquecido com marcadores de rastreabilidade (`documento`, `seção`, `página`).
+* PDFs na pasta `--past` são processados pelo **Docling** para extração de Markdown.
+* **Limpeza de Preâmbulo:** Uma expressão regular agressiva varre o output gerado e poda absolutamente todo o conteúdo (índices, metodologias vazias) que antecede a primeira ocorrência da palavra `"Parecer:"`, focando estritamente na essência da resposta do auditor.
 
 #### 2.3. Estruturação dos Bancos de Dados
-* **Grafo de Conhecimento (`Graphify + KuzuDB` ):** Recebe os Markdowns da documentação e os JSONs enriquecidos da `CodeLLM`, estabelecendo arestas entre conceitos técnicos, limites de projeto e rotinas de código.
-* **Banco Vetorial (`ChromaDB`):** Armazena os *chunks* vetorizados dos relatórios legados que mais se relacionam com a pergunta.
-* **Isolamento de Bancos:** O Grafo de Conhecimento e o Banco Vetorial permanecem em instâncias/armazenamentos independentes.
+* **Grafo de Conhecimento (`Graphify`):** Recebe os Markdowns da documentação (inclusive as descrições de código), faz a extração de entidades semânticas, relaciona os nós e roda um algoritmo de "Detecção de Comunidades" (Clusterização). O output relacional é salvo no `graph.json`.
+* **Banco Vetorial (`ChromaDB`):**
+  * Aplica um `SentenceSplitter` agressivo de 512 tokens para **todas** as coleções (Documentação e Legados).
+  * **Política Tolerância Zero (No-Noise Policy):** Para a coleção `legacy_reports`, qualquer chunk gerado (mesmo fatiado em 512 tokens) que não contiver literalmente a substring `"parecer:"` é impedido de ser gravado no banco, eliminando o risco de alucinações de estilo.
 
 ---
 
@@ -134,19 +120,23 @@ python main.py --docs ./caminho/documentacao               --code ./caminho/codi
 
 ---
 
-### Etapa 4: Construção do Parecer (RAG Híbrido em Duas Fases)
+### Etapa 4: Arquitetura de Recuperação Vector ➔ Graph ➔ Vector
 
-1. **Fase 1 (Navegação no Grafo):**
-   * O **LlamaIndex** executa uma busca híbrida no **Graphify** (KùzuDB) utilizando a descrição do ensaio.
-   * Recupera o subgrafo com as cláusulas do PDF, parâmetros em tabelas e as funções de código associadas.
-   * A LLM principal (**Qwen**) gera uma resposta preliminar fundamentada exclusivamente na documentação do equipamento.
+A etapa de colheita de contexto e geração do parecer agora emprega uma abordagem Híbrida State of the Art:
 
-2. **Fase 2 (Injeção de Histórico e Retroalimentação):**
-   * O **LlamaIndex** realiza uma consulta vetorial no **ChromaDB** procurando relatórios antigos referentes ao mesmo ensaio ou a falhas similares.
-   * O **Qwen** recebe um prompt consolidado contendo:
-     - A análise obtida via Grafo de Conhecimento.
-     - Os *chunks* dos pareceres históricos passados.
-   * A LLM redige o **PARECER** final consolidado, alinhando a exatidão técnica do projeto com os padrões históricos da organização.
+1. **Fase 2a (Multi-Query Entity Extraction):** A LLM extrai do texto do ensaio uma lista pontual de requisitos técnicos.
+2. **Fase 2b (Busca Semântica Semente):** O ChromaDB realiza consultas independentes (`top_k=2`) para CADA entidade extraída, recuperando os arquivos primários do projeto que respondem a essas entidades e formando os "Arquivos Semente".
+3. **Fase 3 (Expansão Topológica):** O algoritmo viaja até o Grafo de Conhecimento (NetworkX) buscando os nós referentes aos Arquivos Semente e expande a rede puxando:
+   - Vizinhos diretos (Distância = 1).
+   - Todos os arquivos que pertencem à **mesma "Community"** (Cluster detectado no Graphify).
+4. **Fase 4 (Busca Semântica Refinada):** O algoritmo volta ao ChromaDB e executa uma super-busca (`top_k=7`) **restringindo matematicamente** a pesquisa apenas aos arquivos resgatados na "teia" do grafo, blindando o retriever contra alucinações e arquivos irrelevantes. Paralelamente, uma busca isolada levanta a jurisprudência nos relatórios legados baseando-se no objetivo do ensaio.
+
+### Etapa 5: Síntese de Parecer em 2 Fases
+
+1. **Fase 5a (Análise Técnica Pura):** A LLM Qwen recebe exclusivamente os chunks do projeto (Código + Manuais) e é orientada a redigir um rascunho determinístico sobre a conformidade técnica do teste. Ela é obrigada a inserir `[Arquivo Origem: X]` apontando os trechos exatos de manuais ou códigos que provam suas alegações.
+2. **Fase 5b (Adequação Histórica):** A LLM avalia a Análise Técnica (Fase 5a) crua contra os chunks filtrados dos relatórios legados e **reescreve** a análise imitando o jargão, nível de formalidade e padrão de resposta da instituição. Regras cruciais aplicadas:
+   - A LLM é terminantemente proibida de citar os arquivos legados como justificativa.
+   - Os arquivos de origem do projeto mapeados na Fase 5a são religiosamente mantidos no texto final.
 
 ---
 

@@ -30,7 +30,8 @@ def test_full_pipeline_generation(mock_load_graph, mock_digraph):
     
     retriever = HybridRetriever("dummy.json", store, llm)
     # Sobrescreve métodos para evitar complexidade do grafo no teste
-    retriever._get_topological_identifiers = MagicMock(return_value=["file1.py"])
+    retriever._get_seed_files = MagicMock(return_value=["file1.py"])
+    retriever._expand_topology = MagicMock(return_value=["file1.py", "file2.py"])
     
     generator = ReportGenerator(retriever, llm_client=llm)
     parecer = generator.generate_parecer("EN-01", "Testar sobretemperatura.")
