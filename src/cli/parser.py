@@ -18,6 +18,7 @@ def parse_args(args=None) -> argparse.Namespace:
     parser.add_argument("--ingestion", action="store_true", help="Executa a ingestão dos dados convertidos no ChromaDB.")
     parser.add_argument("--run", action="store_true", help="Executa a filtragem topológica e o RAG para os testes definidos.")
     parser.add_argument("--skip-code-llm", action="store_true", help="Pula a etapa de geração de documentação de código via LLM.")
+    parser.add_argument("--token-budget", type=int, default=512, help="Tamanho máximo (em tokens) dos chunks originais durante a ingestão (default: 512).")
     
     return parser.parse_args(args)
 

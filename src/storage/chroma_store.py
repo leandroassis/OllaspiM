@@ -1,6 +1,7 @@
 import chromadb
 from typing import Any, Dict, List
 from src.utils.logger import logger
+from src.llm.ollama_client import OllamaClient
 
 from llama_index.core import VectorStoreIndex, Document, StorageContext, Settings
 from llama_index.vector_stores.chroma import ChromaVectorStore
@@ -10,8 +11,10 @@ from llama_index.llms.ollama import Ollama
 class ChromaStore:
     """Implementation of Vector Store using LlamaIndex over ChromaDB for dynamic collections."""
     
-    def __init__(self, persist_directory: str = "./chroma_db"):
+    def __init__(self, persist_directory: str = "./chroma_db", token_budget: int = 512):
         self.persist_directory = persist_directory
+        self.token_budget = token_budget
+        self.llm_interpreter = OllamaClient(model="qwen2.5:7b-instruct")
         try:
             # Configuração Global do LlamaIndex para evitar fallback pro OpenAI
             Settings.embed_model = OllamaEmbedding(model_name="nomic-embed-text")
@@ -57,14 +60,38 @@ class ChromaStore:
                 from llama_index.core.node_parser import SentenceSplitter
                 
                 if col_name == "legacy_reports":
-                    parser = SentenceSplitter(chunk_size=256, chunk_overlap=20)
+                    parser = SentenceSplitter(chunk_size=self.token_budget, chunk_overlap=20)
                     nodes = parser.get_nodes_from_documents(llama_docs)
-                    # No-Noise Policy: only index chunks that actually contain the final Parecer
-                    nodes = [n for n in nodes if "parecer:" in n.text.lower()]
+                    # The docling parser already trims the document to start at "Parecer:", 
+                    # so all resulting chunks here belong to the relevant section.
                 else:
-                    parser = SentenceSplitter(chunk_size=512, chunk_overlap=25)
+                    parser = SentenceSplitter(chunk_size=self.token_budget, chunk_overlap=25)
                     nodes = parser.get_nodes_from_documents(llama_docs)
                     
+                # --- NEW LLM INTERPRETATION STEP (SAR) ---
+                for n in nodes:
+                    doc_type = n.metadata.get("doc_type", "normative")
+                    if doc_type == "normative":
+                        prompt = f"Converta o seguinte texto bruto em uma dissertação técnica contínua (máx 1000 caracteres). Remova toda formatação markdown e artefatos de leitura (como cabeçalhos soltos ou tabelas quebradas). PRESERVE rigorosamente todos os fatos, valores numéricos, siglas e limites. NÃO resuma nem generalize o significado. Apenas transforme em prosa técnica clara e coesa:\n\n{n.text}"
+                        try:
+                            parent_text = self.llm_interpreter.generate(prompt)
+                            n.metadata["raw_child_content"] = n.text
+                            n.text = parent_text
+                        except Exception as e:
+                            logger.warning(f"Erro ao gerar dissertação para chunk normativo: {e}")
+                            n.metadata["raw_child_content"] = n.text
+                    elif doc_type == "legacy":
+                        prompt = f"Analise o seguinte fragmento de um relatório legado. Como o equipamento avaliado costuma ser caracterizado no contexto das verificações técnicas descritas aqui? Filtre dados administrativos irrelevantes e forneça uma descrição clara e alinhada focando nos aspectos técnicos (máx 1000 caracteres):\n\n{n.text}"
+                        try:
+                            parent_text = self.llm_interpreter.generate(prompt)
+                            n.metadata["raw_child_content"] = n.text
+                            n.text = parent_text
+                        except Exception as e:
+                            logger.warning(f"Erro ao gerar dissertação para chunk legado: {e}")
+                            n.metadata["raw_child_content"] = n.text
+                    elif doc_type == "code_desc":
+                        n.metadata["raw_child_content"] = n.metadata.get("raw_code", "Código original não disponível.")
+                        
                 index.insert_nodes(nodes)
                 logger.info(f"Adicionados {len(nodes)} chunks limpos (tam={parser.chunk_size}) para {len(llama_docs)} docs na coleção '{col_name}'.")
             except Exception as e:

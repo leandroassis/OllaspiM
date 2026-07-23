@@ -103,7 +103,7 @@ def main():
                         safe_name = f"doc_{processed_file.name}.md"
                         out_path = graphify_input_dir / safe_name
                         out_path.write_text(content, encoding="utf-8")
-                        manifest.append({"file": str(out_path), "source_file": safe_name, "collection": "documentation"})
+                        manifest.append({"file": str(out_path), "source_file": safe_name, "collection": "documentation", "doc_type": "normative"})
 
             # 2. Process Past Reports (EXCLUDED FROM GRAPHIFY)
             logger.info("Processando Relatórios Legados (Apenas Vetorial)...")
@@ -117,7 +117,7 @@ def main():
                     safe_name = f"past_{processed_file.name}.md"
                     out_path = vector_only_dir / safe_name
                     out_path.write_text(res["content"], encoding="utf-8")
-                    manifest.append({"file": str(out_path), "source_file": processed_file.name, "collection": "legacy_reports"})
+                    manifest.append({"file": str(out_path), "source_file": processed_file.name, "collection": "legacy_reports", "doc_type": "legacy"})
 
             # 3. Process Code
             logger.info("Processando Código Fonte e copiando originais...")
@@ -139,7 +139,13 @@ def main():
                                 safe_name = f"code_desc_{processed_file.name}_lines_{func.get('lines', 'unknown')}.md"
                                 out_path = graphify_input_dir / safe_name
                                 out_path.write_text(md_content, encoding="utf-8")
-                                manifest.append({"file": str(out_path), "source_file": safe_name, "collection": "documentation"})
+                                manifest.append({
+                                    "file": str(out_path), 
+                                    "source_file": safe_name, 
+                                    "collection": "documentation", 
+                                    "doc_type": "code_desc", 
+                                    "raw_code": func.get("codigo_fonte_bruto", "")
+                                })
                         except Exception as e:
                             logger.warning(f"Erro ao fazer parse do código {processed_file}: {e}")
 
@@ -159,7 +165,7 @@ def main():
                 manifest = json.load(f)
                 
             # Initialize ChromaStore (this will handle separate collections)
-            store = ChromaStore()
+            store = ChromaStore(token_budget=args.token_budget)
             
             docs_payload = []
             for item in manifest:
@@ -171,7 +177,9 @@ def main():
                         "content": content,
                         "metadata": {
                             "source_file": item["source_file"],
-                            "type": item["collection"]
+                            "type": item["collection"],
+                            "doc_type": item.get("doc_type", "normative"),
+                            "raw_code": item.get("raw_code", "")
                         },
                         "collection": item["collection"]
                     })

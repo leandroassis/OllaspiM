@@ -29,7 +29,8 @@ class ReportGenerator:
         prompt_5a = f"""
 Você é um auditor de validação de sistemas embarcados.
 Sua missão é redigir um ÚNICO texto dissertativo coeso avaliando se o equipamento atende ao Objetivo do Ensaio. 
-Para isso, você deve obrigatoriamente correlacionar os fragmentos de código e manuais fornecidos abaixo de forma explícita com o contexto do objetivo do teste.
+Para isso, você deve utilizar o [Contexto Semântico] para entendimento e raciocínio técnico.
+Obrigatóriamente, você deve utilizar trechos exatos da [Evidência Bruta para Citação] ao mencionar limites numéricos, nomes de variáveis ou funções.
 
 ID do Ensaio: {test_id}
 Objetivo: {test_description}
@@ -37,7 +38,7 @@ Objetivo: {test_description}
 === DADOS DO PROJETO (Restritos via Grafo e Limitados a 10 Chunks) ===
 {projeto_ctx}
 
-Redija sua análise técnica no formato de uma dissertação única e fluida. CITE explicitamente o nome de cada arquivo (usando a tag [Arquivo Origem: X]) ao longo do seu texto para fundamentar suas conclusões técnicas. Não divida a resposta em tópicos soltos.
+Redija sua análise técnica no formato de uma dissertação única e fluida. CITE explicitamente o nome de cada arquivo (usando a tag [Arquivo Origem: X]) ao longo do seu texto para fundamentar suas conclusões técnicas com base na evidência bruta. Não divida a resposta em tópicos soltos.
 """
         logger.info(f"[{test_id}] Executando Fase 5a (Análise Técnica Pura)...")
         try:
@@ -64,7 +65,7 @@ ID do Ensaio: {test_id}
 
 Redija o parecer final adequando a análise para este padrão institucional.
 REGRA ABSOLUTA: O conteúdo técnico, as decisões de conformidade e as citações (tags [Arquivo Origem: X]) devem vir OBRIGATORIAMENTE da "Análise Técnica". 
-Os pareceres históricos fornecidos servem APENAS como gabarito de estilo de escrita e formatação. Sob nenhuma hipótese adicione informações técnicas dos relatórios legados na sua resposta final nem crie referências a eles.
+Os pareceres históricos fornecidos servem APENAS como gabarito de estilo de escrita e formatação (utilize o [Contexto Semântico] deles para apreender o estilo). Sob nenhuma hipótese adicione informações técnicas dos relatórios legados na sua resposta final nem crie referências a eles.
 """
         logger.info(f"[{test_id}] Executando Fase 5b (Adequação aos Padrões Históricos)...")
         try:

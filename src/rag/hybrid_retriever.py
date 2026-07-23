@@ -190,7 +190,13 @@ class HybridRetriever:
                     logger.info(f"--- Chunk Recuperado (Projeto) [{n.node.metadata.get('source_file')}] ---\n{n.node.text[:300]}...")
                 
                 block = f"--- DOCUMENTATION ---\n"
-                block += "\n\n".join([f"[Arquivo Origem: {n.node.metadata.get('source_file', 'desconhecido')}]\n{n.node.text}" for n in unique_nodes])
+                formatted_nodes = []
+                for n in unique_nodes:
+                    source_file = n.node.metadata.get('source_file', 'desconhecido')
+                    parent_text = n.node.text
+                    child_text = n.node.metadata.get('raw_child_content', 'Indisponível.')
+                    formatted_nodes.append(f"[Arquivo Origem: {source_file}]\n[Contexto Semântico]:\n{parent_text}\n[Evidência Bruta para Citação]:\n{child_text}")
+                block += "\n\n".join(formatted_nodes)
                 project_blocks.append(block)
         except Exception as e:
             logger.error(f"Erro ao consultar coleção 'documentation': {e}")
@@ -209,7 +215,13 @@ class HybridRetriever:
                     logger.info(f"--- Chunk Recuperado (Legado) [{n.node.metadata.get('source_file')}] ---\n{n.node.text[:300]}...")
                 
                 block = f"--- LEGACY_REPORTS ---\n"
-                block += "\n\n".join([f"[Relatório Origem: {n.node.metadata.get('source_file', 'desconhecido')}]\n{n.node.text}" for n in legacy_nodes])
+                formatted_nodes = []
+                for n in legacy_nodes:
+                    source_file = n.node.metadata.get('source_file', 'desconhecido')
+                    parent_text = n.node.text
+                    child_text = n.node.metadata.get('raw_child_content', 'Indisponível.')
+                    formatted_nodes.append(f"[Relatório Origem: {source_file}]\n[Contexto Semântico]:\n{parent_text}\n[Evidência Bruta para Citação]:\n{child_text}")
+                block += "\n\n".join(formatted_nodes)
                 legacy_blocks.append(block)
         except Exception as e:
             logger.error(f"Erro ao consultar coleção 'legacy_reports': {e}")

@@ -9,3 +9,6 @@ data/
 .vector_only_input
 
 __pycache__
+
+tests/past
+.ingestion_manifest.json

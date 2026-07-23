@@ -18,7 +18,7 @@ test:
 # Roda a conversão
 convert:
 	@echo "Iniciando etapa de conversão..."
-	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --convert
+	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --convert #--skip-code-llm
 
 # Roda a extração do graphify externamente
 graphify-extract:
@@ -39,3 +39,18 @@ run:
 
 # Executa todo o pipeline sequencialmente
 all: clean convert graphify-extract ingestion run
+
+# Roda a conversão para os dados de teste
+test-convert:
+	@echo "Iniciando etapa de conversão (TEST)..."
+	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --convert
+
+# Roda a ingestão vetorial no ChromaDB para os dados de teste
+test-ingest:
+	@echo "Iniciando etapa de indexação vetorial (TEST)..."
+	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --ingestion --token-budget 500
+
+# Roda o RAG para os dados de teste
+test-run:
+	@echo "Iniciando orquestração RAG híbrido (TEST)..."
+	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --run
