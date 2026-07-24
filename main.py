@@ -3,6 +3,7 @@ import shutil
 import json
 from pathlib import Path
 import pypdfium2 as pdfium
+from tqdm import tqdm
 
 from src.cli.parser import get_config
 from src.utils.logger import logger
@@ -107,7 +108,8 @@ def main():
             
             # 1. Process Docs
             logger.info("Processando Documentação...")
-            for doc_file in config["docs"].rglob("*"):
+            docs_files = list(config["docs"].rglob("*"))
+            for doc_file in tqdm(docs_files, desc="Docs"):
                 if doc_file.is_file():
                     file_id = str(doc_file.resolve())
                     if file_id in convert_cache:
@@ -136,7 +138,8 @@ def main():
             # 2. Process Past Reports (EXCLUDED FROM GRAPHIFY)
             if not getattr(args, 'no_past', False):
                 logger.info("Processando Relatórios Legados (Apenas Vetorial)...")
-                for past_file in config["past"].rglob("*.pdf"):
+                past_files = list(config["past"].rglob("*.pdf"))
+                for past_file in tqdm(past_files, desc="Legados"):
                     if past_file.is_file():
                         file_id = str(past_file.resolve())
                         if file_id in convert_cache:
@@ -158,7 +161,8 @@ def main():
 
             # 3. Process Code
             logger.info("Processando Código Fonte e copiando originais...")
-            for code_file in config["code"].rglob("*"):
+            code_files = list(config["code"].rglob("*"))
+            for code_file in tqdm(code_files, desc="Code"):
                 if code_file.is_file():
                     file_id = str(code_file.resolve())
                     if file_id in convert_cache:
@@ -212,7 +216,7 @@ def main():
             # Initialize ChromaStore (this will handle separate collections)
             store = ChromaStore(token_budget=args.token_budget)
             
-            for item in manifest:
+            for item in tqdm(manifest, desc="Ingestão"):
                 file_path = Path(item["file"])
                 file_id = str(file_path.resolve())
                 
@@ -256,7 +260,7 @@ def main():
             retriever = HybridRetriever(graph_json_path="graphify-out/graph.json", vector_store=store, llm_client=llm_gen)
             generator = ReportGenerator(retriever, llm_gen)
             
-            for test in valid_tests:
+            for test in tqdm(valid_tests, desc="RUN Pareceres"):
                 tid = test["id"]
                 descricao = test.get("descricao", "Sem descrição")
                 parecer = generator.generate_parecer(tid, descricao, no_past=getattr(args, 'no_past', False))
