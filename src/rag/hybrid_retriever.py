@@ -142,7 +142,7 @@ class HybridRetriever:
         logger.info(f"Fase Expansão (Graph com PageRank): Teia classificada e filtrada para {len(expanded_files)} arquivos: {list(expanded_files)}")
         return list(expanded_files)
 
-    def retrieve_context(self, test_id: str, test_description: str) -> Tuple[str, str]:
+    def retrieve_context(self, test_id: str, test_description: str, no_past: bool = False) -> Tuple[str, str]:
         """
         Executa o pipeline Vector -> Graph -> Vector.
         Retorna (project_context, legacy_context)
@@ -182,7 +182,7 @@ class HybridRetriever:
                         all_project_nodes[n.node.text] = n
                         
             if all_project_nodes:
-                unique_nodes = list(all_project_nodes.values())[:10]
+                unique_nodes = list(all_project_nodes.values())[:25]
                 source_files_found = list(set([n.node.metadata.get('source_file', 'unknown') for n in unique_nodes]))
                 logger.info(f"Fase 4 (Projeto Refinado Multi-Query): {len(unique_nodes)} chunks recuperados. Arquivos: {source_files_found}")
                 
@@ -202,29 +202,32 @@ class HybridRetriever:
             logger.error(f"Erro ao consultar coleção 'documentation': {e}")
                 
         legacy_blocks = []
-        # Legacy reports: search using test_id and test_description natively
-        query_legado = f"Ensaio ID: {test_id}. {test_description}"
-        try:
-            retriever_legacy = self.vector_store.get_retriever(collection_name="legacy_reports", top_k=3)
-            legacy_nodes = retriever_legacy.retrieve(query_legado)
-            if legacy_nodes:
-                source_files_found = [n.node.metadata.get('source_file', 'unknown') for n in legacy_nodes]
-                logger.info(f"Fase 4 (Legado): {len(legacy_nodes)} chunks recuperados. Arquivos: {source_files_found}")
-                
-                for i, n in enumerate(legacy_nodes):
-                    logger.info(f"--- Chunk Recuperado (Legado) [{n.node.metadata.get('source_file')}] ---\n{n.node.text[:300]}...")
-                
-                block = f"--- LEGACY_REPORTS ---\n"
-                formatted_nodes = []
-                for n in legacy_nodes:
-                    source_file = n.node.metadata.get('source_file', 'desconhecido')
-                    parent_text = n.node.text
-                    child_text = n.node.metadata.get('raw_child_content', 'Indisponível.')
-                    formatted_nodes.append(f"[Relatório Origem: {source_file}]\n[Contexto Semântico]:\n{parent_text}\n[Evidência Bruta para Citação]:\n{child_text}")
-                block += "\n\n".join(formatted_nodes)
-                legacy_blocks.append(block)
-        except Exception as e:
-            logger.error(f"Erro ao consultar coleção 'legacy_reports': {e}")
+        if not no_past:
+            # Legacy reports: search using test_id and test_description natively
+            query_legado = f"Ensaio ID: {test_id}. {test_description}"
+            try:
+                retriever_legacy = self.vector_store.get_retriever(collection_name="legacy_reports", top_k=3)
+                legacy_nodes = retriever_legacy.retrieve(query_legado)
+                if legacy_nodes:
+                    source_files_found = [n.node.metadata.get('source_file', 'unknown') for n in legacy_nodes]
+                    logger.info(f"Fase 4 (Legado): {len(legacy_nodes)} chunks recuperados. Arquivos: {source_files_found}")
+                    
+                    for i, n in enumerate(legacy_nodes):
+                        logger.info(f"--- Chunk Recuperado (Legado) [{n.node.metadata.get('source_file')}] ---\n{n.node.text[:300]}...")
+                    
+                    block = f"--- LEGACY_REPORTS ---\n"
+                    formatted_nodes = []
+                    for n in legacy_nodes:
+                        source_file = n.node.metadata.get('source_file', 'desconhecido')
+                        parent_text = n.node.text
+                        child_text = n.node.metadata.get('raw_child_content', 'Indisponível.')
+                        formatted_nodes.append(f"[Relatório Origem: {source_file}]\n[Contexto Semântico]:\n{parent_text}\n[Evidência Bruta para Citação]:\n{child_text}")
+                    block += "\n\n".join(formatted_nodes)
+                    legacy_blocks.append(block)
+            except Exception as e:
+                logger.error(f"Erro ao consultar coleção 'legacy_reports': {e}")
+        else:
+            logger.info("Flag --no-past ativa. Ignorando contexto de relatórios históricos.")
                 
         project_context = "\n\n".join(project_blocks) if project_blocks else "Nenhum contexto técnico recuperado do projeto."
         legacy_context = "\n\n".join(legacy_blocks) if legacy_blocks else "Nenhum relatório histórico encontrado."

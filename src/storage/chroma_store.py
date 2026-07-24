@@ -76,7 +76,7 @@ class ChromaStore:
                         try:
                             parent_text = self.llm_interpreter.generate(prompt)
                             n.metadata["raw_child_content"] = n.text
-                            n.text = parent_text
+                            n.set_content(parent_text)
                         except Exception as e:
                             logger.warning(f"Erro ao gerar dissertação para chunk normativo: {e}")
                             n.metadata["raw_child_content"] = n.text
@@ -85,7 +85,7 @@ class ChromaStore:
                         try:
                             parent_text = self.llm_interpreter.generate(prompt)
                             n.metadata["raw_child_content"] = n.text
-                            n.text = parent_text
+                            n.set_content(parent_text)
                         except Exception as e:
                             logger.warning(f"Erro ao gerar dissertação para chunk legado: {e}")
                             n.metadata["raw_child_content"] = n.text

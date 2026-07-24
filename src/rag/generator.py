@@ -18,12 +18,12 @@ class ReportGenerator:
         self.retriever = retriever
         self.llm = llm_client or OllamaClient(model="qwen2.5-coder:7b-instruct")
         
-    def generate_parecer(self, test_id: str, test_description: str) -> str:
+    def generate_parecer(self, test_id: str, test_description: str, no_past: bool = False) -> str:
         """Generates the consolidated response in 2 steps."""
         logger.info(f"Gerando Parecer para o ensaio {test_id} (Fases 5a e 5b)")
         
         # Fases 2 a 4
-        projeto_ctx, legado_ctx = self.retriever.retrieve_context(test_id, test_description)
+        projeto_ctx, legado_ctx = self.retriever.retrieve_context(test_id, test_description, no_past)
         
         # FASE 5a: Análise Técnica Pura (Projeto)
         prompt_5a = f"""
@@ -35,7 +35,7 @@ Obrigatóriamente, você deve utilizar trechos exatos da [Evidência Bruta para 
 ID do Ensaio: {test_id}
 Objetivo: {test_description}
 
-=== DADOS DO PROJETO (Restritos via Grafo e Limitados a 10 Chunks) ===
+=== DADOS DO PROJETO (Restritos via Grafo e Limitados a 25 Chunks) ===
 {projeto_ctx}
 
 Redija sua análise técnica no formato de uma dissertação única e fluida. CITE explicitamente o nome de cada arquivo (usando a tag [Arquivo Origem: X]) ao longo do seu texto para fundamentar suas conclusões técnicas com base na evidência bruta. Não divida a resposta em tópicos soltos.
@@ -48,6 +48,10 @@ Redija sua análise técnica no formato de uma dissertação única e fluida. CI
         except Exception as e:
             logger.error(f"[{test_id}] Erro na Fase 5a: {e}")
             analise_rascunho = "Não foi possível extrair a lógica técnica do projeto."
+
+        if no_past:
+            logger.info(f"[{test_id}] Flag --no-past ativa. Pulando Fase 5b e retornando apenas Análise Técnica Pura.")
+            return f"Status: Indefinido (Requer validação humana)\n\nParecer:\n{analise_rascunho}"
 
         # FASE 5b: Adequação de Tom e Formato (Relatórios Legados)
         prompt_5b = f"""

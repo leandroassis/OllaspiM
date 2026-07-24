@@ -70,7 +70,10 @@ def main():
         
         if args.convert:
             logger.info("=== ETAPA: CONVERSÃO ===")
-            graphify_input_dir.mkdir(parents=True, exist_ok=True)
+            graphify_input_docs = graphify_input_dir / "docs"
+            graphify_input_code = graphify_input_dir / "code"
+            graphify_input_docs.mkdir(parents=True, exist_ok=True)
+            graphify_input_code.mkdir(parents=True, exist_ok=True)
             vector_only_dir.mkdir(parents=True, exist_ok=True)
             
             logger.info("Inicializando CodeLLM e parsers...")
@@ -101,7 +104,7 @@ def main():
                     
                     if content:
                         safe_name = f"doc_{processed_file.name}.md"
-                        out_path = graphify_input_dir / safe_name
+                        out_path = graphify_input_docs / safe_name
                         out_path.write_text(content, encoding="utf-8")
                         manifest.append({"file": str(out_path), "source_file": safe_name, "collection": "documentation", "doc_type": "normative"})
 
@@ -127,8 +130,8 @@ def main():
                     if not processed_file:
                         continue
                         
-                    # Copy raw file to .graphify_input
-                    shutil.copy2(processed_file, graphify_input_dir / processed_file.name)
+                    # Copy raw file to .graphify_input/code
+                    shutil.copy2(processed_file, graphify_input_code / processed_file.name)
                     
                     # Parse and enrich code
                     if not getattr(args, 'skip_code_llm', False):
@@ -137,7 +140,7 @@ def main():
                             for func in res.get("functions", []):
                                 md_content = enricher.enrich_function(str(processed_file.name), func)
                                 safe_name = f"code_desc_{processed_file.name}_lines_{func.get('lines', 'unknown')}.md"
-                                out_path = graphify_input_dir / safe_name
+                                out_path = graphify_input_code / safe_name
                                 out_path.write_text(md_content, encoding="utf-8")
                                 manifest.append({
                                     "file": str(out_path), 
@@ -204,7 +207,7 @@ def main():
             for test in valid_tests:
                 tid = test["id"]
                 descricao = test.get("descricao", "Sem descrição")
-                parecer = generator.generate_parecer(tid, descricao)
+                parecer = generator.generate_parecer(tid, descricao, no_past=getattr(args, 'no_past', False))
                 
                 logger.info(f"\n{'='*40}\nPARECER FINAL PARA: {tid}\n{parecer}\n{'='*40}")
                 
