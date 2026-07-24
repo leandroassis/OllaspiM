@@ -66,6 +66,8 @@ def main():
         
         graphify_input_dir = Path(".graphify_input")
         manifest_path = Path(".ingestion_manifest.json")
+        convert_cache_path = Path(".convert_cache.json")
+        ingest_cache_path = Path(".ingest_cache.json")
         
         if args.convert:
             logger.info("=== ETAPA: CONVERSÃO ===")
@@ -84,12 +86,34 @@ def main():
             code_parser = CodeParser()
             
             # Dictionary to act as a manifest for the ingestion step
-            manifest = []
+            if manifest_path.exists():
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    manifest = json.load(f)
+            else:
+                manifest = []
+                
+            if convert_cache_path.exists():
+                with open(convert_cache_path, "r", encoding="utf-8") as f:
+                    convert_cache = set(json.load(f))
+            else:
+                convert_cache = set()
+
+            def save_convert_state(file_id: str):
+                convert_cache.add(file_id)
+                with open(convert_cache_path, "w", encoding="utf-8") as f:
+                    json.dump(list(convert_cache), f, indent=4)
+                with open(manifest_path, "w", encoding="utf-8") as f:
+                    json.dump(manifest, f, indent=4)
             
             # 1. Process Docs
             logger.info("Processando Documentação...")
             for doc_file in config["docs"].rglob("*"):
                 if doc_file.is_file():
+                    file_id = str(doc_file.resolve())
+                    if file_id in convert_cache:
+                        logger.info(f"Skipping cached document: {doc_file.name}")
+                        continue
+                        
                     processed_file = preprocess_file(doc_file)
                     if not processed_file:
                         continue
@@ -107,12 +131,18 @@ def main():
                         out_path = graphify_input_docs / safe_name
                         out_path.write_text(content, encoding="utf-8")
                         manifest.append({"file": str(out_path), "source_file": safe_name, "collection": "documentation", "doc_type": "normative"})
+                    save_convert_state(file_id)
 
             # 2. Process Past Reports (EXCLUDED FROM GRAPHIFY)
             if not getattr(args, 'no_past', False):
                 logger.info("Processando Relatórios Legados (Apenas Vetorial)...")
                 for past_file in config["past"].rglob("*.pdf"):
                     if past_file.is_file():
+                        file_id = str(past_file.resolve())
+                        if file_id in convert_cache:
+                            logger.info(f"Skipping cached past report: {past_file.name}")
+                            continue
+                            
                         processed_file = preprocess_file(past_file)
                         if not processed_file:
                             continue
@@ -122,6 +152,7 @@ def main():
                         out_path = graphify_input_past / safe_name
                         out_path.write_text(res["content"], encoding="utf-8")
                         manifest.append({"file": str(out_path), "source_file": processed_file.name, "collection": "legacy_reports", "doc_type": "legacy"})
+                        save_convert_state(file_id)
             else:
                 logger.info("Flag --no-past ativa. Pulando processamento de relatórios legados.")
 
@@ -129,6 +160,11 @@ def main():
             logger.info("Processando Código Fonte e copiando originais...")
             for code_file in config["code"].rglob("*"):
                 if code_file.is_file():
+                    file_id = str(code_file.resolve())
+                    if file_id in convert_cache:
+                        logger.info(f"Skipping cached code file: {code_file.name}")
+                        continue
+                        
                     processed_file = preprocess_file(code_file)
                     if not processed_file:
                         continue
@@ -154,11 +190,8 @@ def main():
                                 })
                         except Exception as e:
                             logger.warning(f"Erro ao fazer parse do código {processed_file}: {e}")
+                    save_convert_state(file_id)
 
-            # Save manifest in root to avoid graphify scanning it
-            with open(manifest_path, "w", encoding="utf-8") as f:
-                json.dump(manifest, f, indent=4)
-                
             logger.info("Conversão concluída. Arquivos gerados em subpastas de .graphify_input/")
 
         elif args.ingestion:
@@ -170,15 +203,27 @@ def main():
             with open(manifest_path, "r", encoding="utf-8") as f:
                 manifest = json.load(f)
                 
+            if ingest_cache_path.exists():
+                with open(ingest_cache_path, "r", encoding="utf-8") as f:
+                    ingest_cache = set(json.load(f))
+            else:
+                ingest_cache = set()
+                
             # Initialize ChromaStore (this will handle separate collections)
             store = ChromaStore(token_budget=args.token_budget)
             
-            docs_payload = []
             for item in manifest:
                 file_path = Path(item["file"])
+                file_id = str(file_path.resolve())
+                
+                if file_id in ingest_cache:
+                    logger.info(f"Skipping already ingested file: {file_path.name}")
+                    continue
+                    
                 if file_path.exists():
+                    logger.info(f"Ingerindo vetores para: {file_path.name}")
                     content = file_path.read_text(encoding="utf-8")
-                    docs_payload.append({
+                    payload = [{
                         "id": file_path.name,
                         "content": content,
                         "metadata": {
@@ -188,9 +233,13 @@ def main():
                             "raw_code": item.get("raw_code", "")
                         },
                         "collection": item["collection"]
-                    })
+                    }]
                     
-            store.add_documents(docs_payload)
+                    store.add_documents(payload)
+                    ingest_cache.add(file_id)
+                    with open(ingest_cache_path, "w", encoding="utf-8") as f:
+                        json.dump(list(ingest_cache), f, indent=4)
+                        
             logger.info("Ingestão vetorial concluída com sucesso.")
 
         elif args.run:

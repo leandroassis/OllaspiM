@@ -5,6 +5,8 @@ clean:
 	rm -rf ./chroma_db
 	rm -rf .graphify_input
 	rm -f .ingestion_manifest.json
+	rm -f .convert_cache.json
+	rm -f .ingest_cache.json
 	rm -rf graphify-out
 	rm -rf graphify-docs
 	rm -rf graphify-code
