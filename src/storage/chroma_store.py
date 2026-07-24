@@ -72,7 +72,7 @@ class ChromaStore:
                 for n in nodes:
                     doc_type = n.metadata.get("doc_type", "normative")
                     if doc_type == "normative":
-                        prompt = f"Converta o seguinte texto bruto em uma dissertação técnica contínua (máx 1000 caracteres). Remova toda formatação markdown e artefatos de leitura (como cabeçalhos soltos ou tabelas quebradas). PRESERVE rigorosamente todos os fatos, valores numéricos, siglas e limites. NÃO resuma nem generalize o significado. Apenas transforme em prosa técnica clara e coesa:\n\n{n.text}"
+                        prompt = f"Converta o seguinte texto bruto em uma dissertação técnica contínua (máx 3000 caracteres). Remova toda formatação markdown e artefatos de leitura (como cabeçalhos soltos ou tabelas quebradas). PRESERVE rigorosamente todos os fatos, valores numéricos, siglas e limites. NÃO resuma nem generalize o significado. Apenas transforme em prosa técnica clara e coesa:\n\n{n.text}"
                         try:
                             parent_text = self.llm_interpreter.generate(prompt)
                             n.metadata["raw_child_content"] = n.text
@@ -81,7 +81,7 @@ class ChromaStore:
                             logger.warning(f"Erro ao gerar dissertação para chunk normativo: {e}")
                             n.metadata["raw_child_content"] = n.text
                     elif doc_type == "legacy":
-                        prompt = f"Analise o seguinte fragmento de um relatório legado. Como o equipamento avaliado costuma ser caracterizado no contexto das verificações técnicas descritas aqui? Filtre dados administrativos irrelevantes e forneça uma descrição clara e alinhada focando nos aspectos técnicos (máx 1000 caracteres):\n\n{n.text}"
+                        prompt = f"Analise o seguinte fragmento de um relatório legado. Como o equipamento avaliado costuma ser caracterizado no contexto das verificações técnicas descritas aqui? Filtre dados administrativos irrelevantes e forneça uma descrição clara e alinhada focando nos aspectos técnicos (máx 3000 caracteres):\n\n{n.text}"
                         try:
                             parent_text = self.llm_interpreter.generate(prompt)
                             n.metadata["raw_child_content"] = n.text
