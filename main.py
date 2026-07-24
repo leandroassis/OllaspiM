@@ -65,16 +65,16 @@ def main():
         config = validate_paths(args)
         
         graphify_input_dir = Path(".graphify_input")
-        vector_only_dir = Path(".vector_only_input")
         manifest_path = Path(".ingestion_manifest.json")
         
         if args.convert:
             logger.info("=== ETAPA: CONVERSÃO ===")
             graphify_input_docs = graphify_input_dir / "docs"
             graphify_input_code = graphify_input_dir / "code"
+            graphify_input_past = graphify_input_dir / "past"
             graphify_input_docs.mkdir(parents=True, exist_ok=True)
             graphify_input_code.mkdir(parents=True, exist_ok=True)
-            vector_only_dir.mkdir(parents=True, exist_ok=True)
+            graphify_input_past.mkdir(parents=True, exist_ok=True)
             
             logger.info("Inicializando CodeLLM e parsers...")
             llm_coder = OllamaClient(model="qwen2.5-coder:7b-instruct")
@@ -109,18 +109,21 @@ def main():
                         manifest.append({"file": str(out_path), "source_file": safe_name, "collection": "documentation", "doc_type": "normative"})
 
             # 2. Process Past Reports (EXCLUDED FROM GRAPHIFY)
-            logger.info("Processando Relatórios Legados (Apenas Vetorial)...")
-            for past_file in config["past"].rglob("*.pdf"):
-                if past_file.is_file():
-                    processed_file = preprocess_file(past_file)
-                    if not processed_file:
-                        continue
-                        
-                    res = docling_parser.parse(processed_file)
-                    safe_name = f"past_{processed_file.name}.md"
-                    out_path = vector_only_dir / safe_name
-                    out_path.write_text(res["content"], encoding="utf-8")
-                    manifest.append({"file": str(out_path), "source_file": processed_file.name, "collection": "legacy_reports", "doc_type": "legacy"})
+            if not getattr(args, 'no_past', False):
+                logger.info("Processando Relatórios Legados (Apenas Vetorial)...")
+                for past_file in config["past"].rglob("*.pdf"):
+                    if past_file.is_file():
+                        processed_file = preprocess_file(past_file)
+                        if not processed_file:
+                            continue
+                            
+                        res = docling_parser.parse(processed_file)
+                        safe_name = f"past_{processed_file.name}.md"
+                        out_path = graphify_input_past / safe_name
+                        out_path.write_text(res["content"], encoding="utf-8")
+                        manifest.append({"file": str(out_path), "source_file": processed_file.name, "collection": "legacy_reports", "doc_type": "legacy"})
+            else:
+                logger.info("Flag --no-past ativa. Pulando processamento de relatórios legados.")
 
             # 3. Process Code
             logger.info("Processando Código Fonte e copiando originais...")
@@ -156,7 +159,7 @@ def main():
             with open(manifest_path, "w", encoding="utf-8") as f:
                 json.dump(manifest, f, indent=4)
                 
-            logger.info("Conversão concluída. Arquivos gerados em .graphify_input/ e .vector_only_input/")
+            logger.info("Conversão concluída. Arquivos gerados em subpastas de .graphify_input/")
 
         elif args.ingestion:
             logger.info("=== ETAPA: INGESTÃO VETORIAL ===")

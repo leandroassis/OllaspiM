@@ -4,7 +4,6 @@ clean:
 	rm -rf ./kuzu_db
 	rm -rf ./chroma_db
 	rm -rf .graphify_input
-	rm -rf .vector_only_input
 	rm -f .ingestion_manifest.json
 	rm -rf graphify-out
 	rm -rf graphify-docs
