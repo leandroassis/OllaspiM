@@ -47,7 +47,7 @@ run *args:
 	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --run {{args}}
 
 # Executa todo o pipeline sequencialmente
-all: clean convert graphify-extract ingestion run
+all: convert graphify-extract ingestion
 
 # Roda a conversão para os dados de teste
 test-convert *args:
