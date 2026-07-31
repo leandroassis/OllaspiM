@@ -27,10 +27,10 @@ convert model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	@echo "Iniciando etapa de conversão (modelo: {{model}})..."
 	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --convert --model {{model}} {{args}}
 
-graphify-extract model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf":
+graphify-extract model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	@echo "Executando extração do graphify em subpastas (modelo: {{model}})..."
-	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/docs --out graphify-docs --backend openai --max-concurrency 2 --token-budget 2048
-	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/code --out graphify-code --backend openai --max-concurrency 2 --token-budget 2048
+	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/docs --out graphify-docs --backend openai {{args}}
+	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/code --out graphify-code --backend openai {{args}}
 	@echo "Mesclando os grafos..."
 	mkdir -p graphify-out
 	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify merge-graphs graphify-docs/graphify-out/graph.json graphify-code/graphify-out/graph.json --out graphify-out/graph.json
@@ -62,7 +62,7 @@ run model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" num_chunks="20" *args:
 #      just all meu-modelo:7b 30         (modelo custom + 30 chunks no run)
 all model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" num_chunks="20":
 	just convert {{model}} --skip-code-llm
-	just graphify-extract {{model}}
+	just graphify-extract {{model}} --max-concurrency 2 --token-budget 8192
 	just ingestion {{model}} --no-past
 	just run {{model}} {{num_chunks}} --no-past
 
