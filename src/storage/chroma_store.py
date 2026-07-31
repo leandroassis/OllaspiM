@@ -43,7 +43,9 @@ class ChromaStore:
             llama_doc = Document(
                 text=doc["content"], 
                 doc_id=doc["id"], 
-                metadata=doc.get("metadata", {})
+                metadata=doc.get("metadata", {}),
+                excluded_embed_metadata_keys=["raw_code"],
+                excluded_llm_metadata_keys=["raw_code"]
             )
             collections_map[col_name].append(llama_doc)
             
