@@ -5,14 +5,31 @@ from src.utils.exceptions import ParsingException
 from src.utils.logger import logger
 # pyrefly: ignore [missing-import]
 # pyright: ignore [reportMissingImports]
-from docling.document_converter import DocumentConverter
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.datamodel.pipeline_options import PdfPipelineOptions, AcceleratorOptions, AcceleratorDevice
+from docling.datamodel.base_models import InputFormat
 
 class DoclingParser(BaseParser):
     """Parser for PDF files using Docling to extract Markdown and metadata."""
     
     def __init__(self):
         try:
-            self.converter = DocumentConverter()
+            accelerator_options = AcceleratorOptions(
+                num_threads=4,
+                device=AcceleratorDevice.CUDA,
+            )
+            pipeline_options = PdfPipelineOptions()
+            pipeline_options.accelerator_options = accelerator_options
+            pipeline_options.do_ocr = True
+            pipeline_options.do_table_structure = True
+            pipeline_options.table_structure_options.do_cell_matching = True
+            
+            self.converter = DocumentConverter(
+                format_options={
+                    InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+                }
+            )
+            logger.info("DoclingParser inicializado com aceleração CUDA.")
         except Exception as e:
             logger.error(f"Falha ao inicializar DocumentConverter do Docling: {e}")
             raise
