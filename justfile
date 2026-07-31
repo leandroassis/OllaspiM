@@ -18,11 +18,14 @@ test:
 	@echo "Executando os testes..."
 	.venv/bin/pytest -v tests/
 
-# Roda a conversão 
-# --skip-code-llm
-convert *args:
-	@echo "Iniciando etapa de conversão..."
-	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --convert {{args}}
+# Roda a conversão
+# Flags extras opcionais: --skip-code-llm
+# Uso: just convert            (usa bonsai:8b)
+#      just convert meu-modelo:7b
+#      just convert meu-modelo:7b --skip-code-llm
+convert model="bonsai:8b" *args:
+	@echo "Iniciando etapa de conversão (modelo: {{model}})..."
+	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --convert --model {{model}} {{args}}
 
 graphify-extract model="bonsai:8b":
 	@echo "Executando extração do graphify em subpastas (modelo: {{model}})..."
@@ -37,30 +40,41 @@ graphify-extract model="bonsai:8b":
 	.venv/bin/python -m graphify export html .
 
 # Roda a ingestão vetorial no ChromaDB
-ingestion *args:
-	@echo "Iniciando etapa de indexação vetorial..."
-	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --ingestion {{args}}
+# Uso: just ingestion            (usa bonsai:8b)
+#      just ingestion meu-modelo:7b
+#      just ingestion meu-modelo:7b --no-past
+ingestion model="bonsai:8b" *args:
+	@echo "Iniciando etapa de indexação vetorial (modelo: {{model}})..."
+	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --ingestion --model {{model}} {{args}}
 
 # Roda o RAG
-# --no-past 
-run *args:
-	@echo "Iniciando orquestração RAG híbrido..."
-	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --run {{args}}
+# Uso: just run            (usa bonsai:8b)
+#      just run meu-modelo:7b
+#      just run meu-modelo:7b --no-past
+run model="bonsai:8b" *args:
+	@echo "Iniciando orquestração RAG híbrido (modelo: {{model}})..."
+	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --run --model {{model}} {{args}}
 
 # Executa todo o pipeline sequencialmente
-all: convert graphify-extract ingestion
+# Uso: just all            (usa bonsai:8b)
+#      just all meu-modelo:7b
+all model="bonsai:8b":
+	just convert {{model}} --skip-code-llm	
+	just graphify-extract {{model}}
+	just ingestion {{model}} --no-past
+	just run {{model}} --no-past
 
 # Roda a conversão para os dados de teste
-test-convert *args:
-	@echo "Iniciando etapa de conversão (TEST)..."
-	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --convert {{args}}
+test-convert model="bonsai:8b" *args:
+	@echo "Iniciando etapa de conversão (TEST, modelo: {{model}})..."
+	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --convert --model {{model}} {{args}}
 
 # Roda a ingestão vetorial no ChromaDB para os dados de teste
-test-ingest *args:
-	@echo "Iniciando etapa de indexação vetorial (TEST)..."
-	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --ingestion --token-budget 500 {{args}}
+test-ingest model="bonsai:8b" *args:
+	@echo "Iniciando etapa de indexação vetorial (TEST, modelo: {{model}})..."
+	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --ingestion --token-budget 500 --model {{model}} {{args}}
 
 # Roda o RAG para os dados de teste
-test-run *args:
-	@echo "Iniciando orquestração RAG híbrido (TEST)..."
-	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --run {{args}}
+test-run model="bonsai:8b" *args:
+	@echo "Iniciando orquestração RAG híbrido (TEST, modelo: {{model}})..."
+	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --run --model {{model}} {{args}}
