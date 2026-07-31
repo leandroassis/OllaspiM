@@ -79,8 +79,8 @@ def main():
             graphify_input_code.mkdir(parents=True, exist_ok=True)
             graphify_input_past.mkdir(parents=True, exist_ok=True)
             
-            logger.info("Inicializando CodeLLM e parsers...")
-            llm_coder = OllamaClient(model="qwen2.5-coder:7b-instruct")
+            logger.info(f"Inicializando CodeLLM e parsers... (modelo: {args.model})")
+            llm_coder = OllamaClient(model=args.model)
             enricher = CodeEnricher(llm_coder)
             docling_parser = DoclingParser()
             markitdown_parser = MarkItDownParser()
@@ -214,7 +214,7 @@ def main():
                 ingest_cache = set()
                 
             # Initialize ChromaStore (this will handle separate collections)
-            store = ChromaStore(token_budget=args.token_budget)
+            store = ChromaStore(token_budget=args.token_budget, model=args.model)
             
             for item in tqdm(manifest, desc="Ingestão"):
                 file_path = Path(item["file"])
@@ -249,13 +249,13 @@ def main():
         elif args.run:
             logger.info("=== ETAPA: ORQUESTRAÇÃO RAG (RUN) ===")
             
-            logger.info("Inicializando modelos e orquestrador...")
-            llm_gen = OllamaClient(model="qwen2.5:7b-instruct")
+            logger.info(f"Inicializando modelos e orquestrador... (modelo: {args.model})")
+            llm_gen = OllamaClient(model=args.model)
             orchestrator = WorkerOrchestrator(ensaios_json_path="src/worker/ensaios.json")
             test_ids = orchestrator.get_test_list(config["tests"])
             valid_tests = orchestrator.filter_automatable_tests(test_ids)
             
-            store = ChromaStore()
+            store = ChromaStore(model=args.model)
             # HybridRetriever now takes ChromaStore and the path to graph.json
             retriever = HybridRetriever(graph_json_path="graphify-out/graph.json", vector_store=store, llm_client=llm_gen)
             generator = ReportGenerator(retriever, llm_gen)

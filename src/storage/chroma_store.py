@@ -11,19 +11,20 @@ from llama_index.llms.ollama import Ollama
 class ChromaStore:
     """Implementation of Vector Store using LlamaIndex over ChromaDB for dynamic collections."""
     
-    def __init__(self, persist_directory: str = "./chroma_db", token_budget: int = 512):
+    def __init__(self, persist_directory: str = "./chroma_db", token_budget: int = 512, model: str = "bonsai:8b"):
         self.persist_directory = persist_directory
         self.token_budget = token_budget
-        self.llm_interpreter = OllamaClient(model="qwen2.5:7b-instruct")
+        self.model = model
+        self.llm_interpreter = OllamaClient(model=model)
         try:
             # Configuração Global do LlamaIndex para evitar fallback pro OpenAI
             Settings.embed_model = OllamaEmbedding(model_name="nomic-embed-text")
-            Settings.llm = Ollama(model="qwen2.5:7b-instruct", request_timeout=120.0)
+            Settings.llm = Ollama(model=model, request_timeout=120.0)
             Settings.chunk_size = 8192
             Settings.chunk_overlap = 5
             
             self.db = chromadb.PersistentClient(path=self.persist_directory)
-            logger.info(f"Conectado ao ChromaDB em {self.persist_directory}")
+            logger.info(f"Conectado ao ChromaDB em {self.persist_directory} (modelo: {model})")
         except Exception as e:
             logger.error(f"Erro ao inicializar ChromaDB: {e}")
             raise
