@@ -34,15 +34,15 @@ convert model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 #      just graphify-extract meu-modelo:7b --max-concurrency 2 --token-budget 8192
 graphify-extract model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	@echo "Executando extração do graphify em subpastas (modelo: {{model}})..."
-	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/docs --out graphify-docs --backend openai {{args}}
-	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/code --out graphify-code --backend openai {{args}}
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=16384 OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/docs --out graphify-docs --backend openai {{args}}
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=16384 OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/code --out graphify-code --backend openai {{args}}
 	@echo "Mesclando os grafos..."
 	mkdir -p graphify-out
-	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify merge-graphs graphify-docs/graphify-out/graph.json graphify-code/graphify-out/graph.json --out graphify-out/graph.json
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=16384 OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify merge-graphs graphify-docs/graphify-out/graph.json graphify-code/graphify-out/graph.json --out graphify-out/graph.json
 	@echo "Gerando clusters..."
-	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify cluster-only . --backend openai
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=16384 OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify cluster-only . --backend openai
 	@echo "Exportando HTML..."
-	.venv/bin/python -m graphify export html .
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 .venv/bin/python -m graphify export html .
 
 # Roda a ingestão vetorial no ChromaDB
 # Uso: just ingestion            (usa MobiusDevelopment/Bonsai-27B-Q1_0-gguf)
