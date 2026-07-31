@@ -21,6 +21,7 @@ def parse_args(args=None) -> argparse.Namespace:
     parser.add_argument("--token-budget", type=int, default=2048, help="Tamanho máximo (em tokens) dos chunks originais durante a ingestão (default: 512).")
     parser.add_argument("--no-past", action="store_true", help="Desabilita o envio de chunks de relatórios anteriores para o modelo na fase run.")
     parser.add_argument("--model", type=str, default="MobiusDevelopment/Bonsai-27B-Q1_0-gguf", help="Modelo Ollama a ser utilizado em todas as funções LLM do pipeline (default: MobiusDevelopment/Bonsai-27B-Q1_0-gguf).")
+    parser.add_argument("--num-chunks", type=int, default=20, help="Número de chunks de documentação passados no prompt final durante a etapa --run (default: 20).")
     
     return parser.parse_args(args)
 

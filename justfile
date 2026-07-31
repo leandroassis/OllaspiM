@@ -48,21 +48,23 @@ ingestion model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --ingestion --model {{model}} {{args}}
 
 # Roda o RAG
-# Uso: just run            (usa MobiusDevelopment/Bonsai-27B-Q1_0-gguf)
-#      just run meu-modelo:7b
-#      just run meu-modelo:7b --no-past
-run model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
-	@echo "Iniciando orquestração RAG híbrido (modelo: {{model}})..."
-	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --run --model {{model}} {{args}}
+# Uso: just run                          (modelo e chunks default)
+#      just run meu-modelo:7b            (modelo custom)
+#      just run meu-modelo:7b 30         (modelo custom + 30 chunks)
+#      just run meu-modelo:7b 30 --no-past
+run model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" num_chunks="20" *args:
+	@echo "Iniciando orquestração RAG híbrido (modelo: {{model}}, chunks: {{num_chunks}})..."
+	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --run --model {{model}} --num-chunks {{num_chunks}} {{args}}
 
 # Executa todo o pipeline sequencialmente
-# Uso: just all            (usa MobiusDevelopment/Bonsai-27B-Q1_0-gguf)
-#      just all meu-modelo:7b
-all model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf":
-	just convert {{model}} --skip-code-llm	
+# Uso: just all                           (tudo com defaults)
+#      just all meu-modelo:7b            (modelo custom)
+#      just all meu-modelo:7b 30         (modelo custom + 30 chunks no run)
+all model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" num_chunks="20":
+	just convert {{model}} --skip-code-llm
 	just graphify-extract {{model}}
 	just ingestion {{model}} --no-past
-	just run {{model}} --no-past
+	just run {{model}} {{num_chunks}} --no-past
 
 # Roda a conversão para os dados de teste
 test-convert model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
@@ -75,6 +77,6 @@ test-ingest model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --ingestion --token-budget 500 --model {{model}} {{args}}
 
 # Roda o RAG para os dados de teste
-test-run model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
-	@echo "Iniciando orquestração RAG híbrido (TEST, modelo: {{model}})..."
-	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --run --model {{model}} {{args}}
+test-run model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" num_chunks="20" *args:
+	@echo "Iniciando orquestração RAG híbrido (TEST, modelo: {{model}}, chunks: {{num_chunks}})..."
+	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --run --model {{model}} --num-chunks {{num_chunks}} {{args}}

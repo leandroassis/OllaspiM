@@ -18,12 +18,12 @@ class ReportGenerator:
         self.retriever = retriever
         self.llm = llm_client or OllamaClient(model="qwen2.5-coder:7b-instruct")
         
-    def generate_parecer(self, test_id: str, test_description: str, no_past: bool = False) -> str:
+    def generate_parecer(self, test_id: str, test_description: str, no_past: bool = False, num_chunks: int = 20) -> str:
         """Generates the consolidated response in 2 steps."""
-        logger.info(f"Gerando Parecer para o ensaio {test_id} (Fases 5a e 5b)")
+        logger.info(f"Gerando Parecer para o ensaio {test_id} (Fases 5a e 5b, num_chunks={num_chunks})")
         
         # Fases 2 a 4
-        projeto_ctx, legado_ctx = self.retriever.retrieve_context(test_id, test_description, no_past)
+        projeto_ctx, legado_ctx = self.retriever.retrieve_context(test_id, test_description, no_past, num_chunks=num_chunks)
         
         # FASE 5a: Análise Técnica Pura (Projeto)
         prompt_5a = f"""
@@ -35,7 +35,7 @@ Obrigatóriamente, você deve utilizar trechos exatos da [Evidência Bruta para 
 ID do Ensaio: {test_id}
 Objetivo: {test_description}
 
-=== DADOS DO PROJETO (Restritos via Grafo e Limitados a 25 Chunks) ===
+=== DADOS DO PROJETO (Restritos via Grafo e Limitados a {num_chunks} Chunks) ===
 {projeto_ctx}
 
 Redija sua análise técnica no formato de uma dissertação única e fluida. CITE explicitamente o nome de cada arquivo (usando a tag [Arquivo Origem: X]) ao longo do seu texto para fundamentar suas conclusões técnicas com base na evidência bruta. Não divida a resposta em tópicos soltos.

@@ -263,7 +263,7 @@ def main():
             for test in tqdm(valid_tests, desc="RUN Pareceres"):
                 tid = test["id"]
                 descricao = test.get("descricao", "Sem descrição")
-                parecer = generator.generate_parecer(tid, descricao, no_past=getattr(args, 'no_past', False))
+                parecer = generator.generate_parecer(tid, descricao, no_past=getattr(args, 'no_past', False), num_chunks=args.num_chunks)
                 
                 logger.info(f"\n{'='*40}\nPARECER FINAL PARA: {tid}\n{parecer}\n{'='*40}")
                 

@@ -142,7 +142,7 @@ class HybridRetriever:
         logger.info(f"Fase Expansão (Graph com PageRank): Teia classificada e filtrada para {len(expanded_files)} arquivos: {list(expanded_files)}")
         return list(expanded_files)
 
-    def retrieve_context(self, test_id: str, test_description: str, no_past: bool = False) -> Tuple[str, str]:
+    def retrieve_context(self, test_id: str, test_description: str, no_past: bool = False, num_chunks: int = 20) -> Tuple[str, str]:
         """
         Executa o pipeline Vector -> Graph -> Vector.
         Retorna (project_context, legacy_context)
@@ -171,7 +171,7 @@ class HybridRetriever:
         project_blocks = []
         try:
             # Fase 4 (Refinada Multi-Query): Busca chunks iterando as entidades
-            retriever = self.vector_store.get_retriever(collection_name="documentation", top_k=3, filters=filters)
+            retriever = self.vector_store.get_retriever(collection_name="documentation", top_k=max(3, num_chunks // len(entities) + 1), filters=filters)
             
             all_project_nodes = {}
             for entity in entities:
@@ -182,9 +182,9 @@ class HybridRetriever:
                         all_project_nodes[n.node.text] = n
                         
             if all_project_nodes:
-                unique_nodes = list(all_project_nodes.values())[:25]
+                unique_nodes = list(all_project_nodes.values())[:num_chunks]
                 source_files_found = list(set([n.node.metadata.get('source_file', 'unknown') for n in unique_nodes]))
-                logger.info(f"Fase 4 (Projeto Refinado Multi-Query): {len(unique_nodes)} chunks recuperados. Arquivos: {source_files_found}")
+                logger.info(f"Fase 4 (Projeto Refinado Multi-Query): {len(unique_nodes)}/{num_chunks} chunks recuperados. Arquivos: {source_files_found}")
                 
                 for i, n in enumerate(unique_nodes):
                     logger.info(f"--- Chunk Recuperado (Projeto) [{n.node.metadata.get('source_file')}] ---\n{n.node.text[:300]}...")
