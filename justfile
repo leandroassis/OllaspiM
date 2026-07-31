@@ -20,14 +20,14 @@ test:
 
 # Roda a conversão
 # Flags extras opcionais: --skip-code-llm
-# Uso: just convert            (usa bonsai:8b)
+# Uso: just convert            (usa digitsflow/bonsai-8b:latest)
 #      just convert meu-modelo:7b
 #      just convert meu-modelo:7b --skip-code-llm
-convert model="bonsai:8b" *args:
+convert model="digitsflow/bonsai-8b:latest" *args:
 	@echo "Iniciando etapa de conversão (modelo: {{model}})..."
 	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --convert --model {{model}} {{args}}
 
-graphify-extract model="bonsai:8b":
+graphify-extract model="digitsflow/bonsai-8b:latest":
 	@echo "Executando extração do graphify em subpastas (modelo: {{model}})..."
 	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/docs --out graphify-docs --backend openai --max-concurrency 2 --token-budget 2048
 	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/code --out graphify-code --backend openai --max-concurrency 2 --token-budget 2048
@@ -40,41 +40,41 @@ graphify-extract model="bonsai:8b":
 	.venv/bin/python -m graphify export html .
 
 # Roda a ingestão vetorial no ChromaDB
-# Uso: just ingestion            (usa bonsai:8b)
+# Uso: just ingestion            (usa digitsflow/bonsai-8b:latest)
 #      just ingestion meu-modelo:7b
 #      just ingestion meu-modelo:7b --no-past
-ingestion model="bonsai:8b" *args:
+ingestion model="digitsflow/bonsai-8b:latest" *args:
 	@echo "Iniciando etapa de indexação vetorial (modelo: {{model}})..."
 	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --ingestion --model {{model}} {{args}}
 
 # Roda o RAG
-# Uso: just run            (usa bonsai:8b)
+# Uso: just run            (usa digitsflow/bonsai-8b:latest)
 #      just run meu-modelo:7b
 #      just run meu-modelo:7b --no-past
-run model="bonsai:8b" *args:
+run model="digitsflow/bonsai-8b:latest" *args:
 	@echo "Iniciando orquestração RAG híbrido (modelo: {{model}})..."
 	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --run --model {{model}} {{args}}
 
 # Executa todo o pipeline sequencialmente
-# Uso: just all            (usa bonsai:8b)
+# Uso: just all            (usa digitsflow/bonsai-8b:latest)
 #      just all meu-modelo:7b
-all model="bonsai:8b":
+all model="digitsflow/bonsai-8b:latest":
 	just convert {{model}} --skip-code-llm	
 	just graphify-extract {{model}}
 	just ingestion {{model}} --no-past
 	just run {{model}} --no-past
 
 # Roda a conversão para os dados de teste
-test-convert model="bonsai:8b" *args:
+test-convert model="digitsflow/bonsai-8b:latest" *args:
 	@echo "Iniciando etapa de conversão (TEST, modelo: {{model}})..."
 	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --convert --model {{model}} {{args}}
 
 # Roda a ingestão vetorial no ChromaDB para os dados de teste
-test-ingest model="bonsai:8b" *args:
+test-ingest model="digitsflow/bonsai-8b:latest" *args:
 	@echo "Iniciando etapa de indexação vetorial (TEST, modelo: {{model}})..."
 	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --ingestion --token-budget 500 --model {{model}} {{args}}
 
 # Roda o RAG para os dados de teste
-test-run model="bonsai:8b" *args:
+test-run model="digitsflow/bonsai-8b:latest" *args:
 	@echo "Iniciando orquestração RAG híbrido (TEST, modelo: {{model}})..."
 	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --run --model {{model}} {{args}}
