@@ -28,7 +28,7 @@ test:
 # Uso: just server-start path/to/model.gguf
 #      just server-start path/to/model.gguf 9090        (porta custom)
 #      just server-start path/to/model.gguf 9090 MAX_CTX   (porta + ctx size)
-server-start model_path port=DEFAULT_PORT ctx="MAX_CTX":
+server-start model_path port=DEFAULT_PORT ctx=MAX_CTX:
 	@echo "Iniciando llama-server (modelo: {{model_path}}, porta: {{port}}, ctx: {{ctx}})..."
 	llama-server \
 		--model {{model_path}} \
@@ -121,7 +121,7 @@ run model_path port=DEFAULT_PORT num_chunks=DEFAULT_CHUNKS *args:
 #      just all path/to/model.gguf 8080
 #      just all path/to/model.gguf 8080 20
 #      just all path/to/model.gguf 8080 20 MAX_CTX   (ctx size)
-all model_path port=DEFAULT_PORT num_chunks=DEFAULT_CHUNKS ctx="MAX_CTX":
+all model_path port=DEFAULT_PORT num_chunks=DEFAULT_CHUNKS ctx=MAX_CTX:
 	just convert {{model_path}} {{port}} --skip-code-llm
 	just server-start {{model_path}} {{port}} {{ctx}}
 	just graphify-extract {{model_path}} {{port}} --max-concurrency 2 --token-budget MAX_CTX
