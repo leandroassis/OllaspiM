@@ -72,21 +72,21 @@ convert model_path port=DEFAULT_PORT *args:
 # Extração do grafo — o servidor deve estar rodando (server-start).
 # Uso: just graphify-extract path/to/model.gguf
 #      just graphify-extract path/to/model.gguf 8080 --max-concurrency 2 --token-budget 8192
-graphify-extract model_path port=DEFAULT_PORT *args:
+graphify-extract model_path port=DEFAULT_PORT ctx=MAX_CTX *args:
 	@echo "Executando extração do graphify (modelo: {{model_path}}, porta: {{port}})..."
-	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=MAX_CTX \
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=ctx \
 		OPENAI_BASE_URL=http://localhost:{{port}}/v1 OPENAI_API_KEY=llama-cpp OPENAI_MODEL={{model_path}} \
 		.venv/bin/python -m graphify extract .graphify_input/docs --out graphify-docs --backend openai {{args}}
-	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=MAX_CTX \
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=ctx \
 		OPENAI_BASE_URL=http://localhost:{{port}}/v1 OPENAI_API_KEY=llama-cpp OPENAI_MODEL={{model_path}} \
 		.venv/bin/python -m graphify extract .graphify_input/code --out graphify-code --backend openai {{args}}
 	@echo "Mesclando os grafos..."
 	mkdir -p graphify-out
-	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=MAX_CTX \
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=ctx \
 		OPENAI_BASE_URL=http://localhost:{{port}}/v1 OPENAI_API_KEY=llama-cpp OPENAI_MODEL={{model_path}} \
 		.venv/bin/python -m graphify merge-graphs graphify-docs/graphify-out/graph.json graphify-code/graphify-out/graph.json --out graphify-out/graph.json
 	@echo "Gerando clusters..."
-	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=MAX_CTX \
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=ctx \
 		OPENAI_BASE_URL=http://localhost:{{port}}/v1 OPENAI_API_KEY=llama-cpp OPENAI_MODEL={{model_path}} \
 		.venv/bin/python -m graphify cluster-only . --backend openai
 	@echo "Exportando HTML..."
