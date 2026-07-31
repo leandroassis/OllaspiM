@@ -20,7 +20,7 @@ def parse_args(args=None) -> argparse.Namespace:
     parser.add_argument("--skip-code-llm", action="store_true", help="Pula a etapa de geração de documentação de código via LLM.")
     parser.add_argument("--token-budget", type=int, default=2048, help="Tamanho máximo (em tokens) dos chunks originais durante a ingestão (default: 512).")
     parser.add_argument("--no-past", action="store_true", help="Desabilita o envio de chunks de relatórios anteriores para o modelo na fase run.")
-    parser.add_argument("--model", type=str, default="digitsflow/bonsai-8b:latest", help="Modelo Ollama a ser utilizado em todas as funções LLM do pipeline (default: digitsflow/bonsai-8b:latest).")
+    parser.add_argument("--model", type=str, default="MobiusDevelopment/Bonsai-27B-Q1_0-gguf", help="Modelo Ollama a ser utilizado em todas as funções LLM do pipeline (default: MobiusDevelopment/Bonsai-27B-Q1_0-gguf).")
     
     return parser.parse_args(args)
 

@@ -20,14 +20,14 @@ test:
 
 # Roda a conversão
 # Flags extras opcionais: --skip-code-llm
-# Uso: just convert            (usa digitsflow/bonsai-8b:latest)
+# Uso: just convert            (usa MobiusDevelopment/Bonsai-27B-Q1_0-gguf)
 #      just convert meu-modelo:7b
 #      just convert meu-modelo:7b --skip-code-llm
-convert model="digitsflow/bonsai-8b:latest" *args:
+convert model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	@echo "Iniciando etapa de conversão (modelo: {{model}})..."
 	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --convert --model {{model}} {{args}}
 
-graphify-extract model="digitsflow/bonsai-8b:latest":
+graphify-extract model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf":
 	@echo "Executando extração do graphify em subpastas (modelo: {{model}})..."
 	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/docs --out graphify-docs --backend openai --max-concurrency 2 --token-budget 2048
 	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/code --out graphify-code --backend openai --max-concurrency 2 --token-budget 2048
@@ -40,41 +40,41 @@ graphify-extract model="digitsflow/bonsai-8b:latest":
 	.venv/bin/python -m graphify export html .
 
 # Roda a ingestão vetorial no ChromaDB
-# Uso: just ingestion            (usa digitsflow/bonsai-8b:latest)
+# Uso: just ingestion            (usa MobiusDevelopment/Bonsai-27B-Q1_0-gguf)
 #      just ingestion meu-modelo:7b
 #      just ingestion meu-modelo:7b --no-past
-ingestion model="digitsflow/bonsai-8b:latest" *args:
+ingestion model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	@echo "Iniciando etapa de indexação vetorial (modelo: {{model}})..."
 	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --ingestion --model {{model}} {{args}}
 
 # Roda o RAG
-# Uso: just run            (usa digitsflow/bonsai-8b:latest)
+# Uso: just run            (usa MobiusDevelopment/Bonsai-27B-Q1_0-gguf)
 #      just run meu-modelo:7b
 #      just run meu-modelo:7b --no-past
-run model="digitsflow/bonsai-8b:latest" *args:
+run model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	@echo "Iniciando orquestração RAG híbrido (modelo: {{model}})..."
 	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --run --model {{model}} {{args}}
 
 # Executa todo o pipeline sequencialmente
-# Uso: just all            (usa digitsflow/bonsai-8b:latest)
+# Uso: just all            (usa MobiusDevelopment/Bonsai-27B-Q1_0-gguf)
 #      just all meu-modelo:7b
-all model="digitsflow/bonsai-8b:latest":
+all model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf":
 	just convert {{model}} --skip-code-llm	
 	just graphify-extract {{model}}
 	just ingestion {{model}} --no-past
 	just run {{model}} --no-past
 
 # Roda a conversão para os dados de teste
-test-convert model="digitsflow/bonsai-8b:latest" *args:
+test-convert model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	@echo "Iniciando etapa de conversão (TEST, modelo: {{model}})..."
 	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --convert --model {{model}} {{args}}
 
 # Roda a ingestão vetorial no ChromaDB para os dados de teste
-test-ingest model="digitsflow/bonsai-8b:latest" *args:
+test-ingest model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	@echo "Iniciando etapa de indexação vetorial (TEST, modelo: {{model}})..."
 	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --ingestion --token-budget 500 --model {{model}} {{args}}
 
 # Roda o RAG para os dados de teste
-test-run model="digitsflow/bonsai-8b:latest" *args:
+test-run model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	@echo "Iniciando orquestração RAG híbrido (TEST, modelo: {{model}})..."
 	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --run --model {{model}} {{args}}

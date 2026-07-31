@@ -11,7 +11,7 @@ from llama_index.llms.ollama import Ollama
 class ChromaStore:
     """Implementation of Vector Store using LlamaIndex over ChromaDB for dynamic collections."""
     
-    def __init__(self, persist_directory: str = "./chroma_db", token_budget: int = 512, model: str = "digitsflow/bonsai-8b:latest"):
+    def __init__(self, persist_directory: str = "./chroma_db", token_budget: int = 512, model: str = "MobiusDevelopment/Bonsai-27B-Q1_0-gguf"):
         self.persist_directory = persist_directory
         self.token_budget = token_budget
         self.model = model
