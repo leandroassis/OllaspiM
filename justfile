@@ -1,4 +1,8 @@
-# Limpa os bancos de dados e pastas de staging
+# ─── Configurações default ────────────────────────────────────────────────────
+DEFAULT_PORT   := "8080"
+DEFAULT_CHUNKS := "20"
+
+# ─── Limpeza ──────────────────────────────────────────────────────────────────
 clean:
 	@echo "Limpando bancos de dados e artefatos gerados..."
 	rm -rf ./kuzu_db
@@ -13,75 +17,138 @@ clean:
 	rm -rf .pytest_cache
 	@echo "Limpeza concluída!"
 
-# Roda todos os testes
+# ─── Testes ───────────────────────────────────────────────────────────────────
 test:
 	@echo "Executando os testes..."
 	.venv/bin/pytest -v tests/
 
-# Roda a conversão
-# Flags extras opcionais: --skip-code-llm
-# Uso: just convert            (usa MobiusDevelopment/Bonsai-27B-Q1_0-gguf)
-#      just convert meu-modelo:7b
-#      just convert meu-modelo:7b --skip-code-llm
-convert model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
-	@echo "Iniciando etapa de conversão (modelo: {{model}})..."
-	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --convert --model {{model}} {{args}}
+# ─── llama.cpp server ─────────────────────────────────────────────────────────
+# Sobe o servidor llama.cpp em background e salva o PID em .llama_server.pid
+# Uso: just server-start path/to/model.gguf
+#      just server-start path/to/model.gguf 9090        (porta custom)
+#      just server-start path/to/model.gguf 9090 4096   (porta + ctx size)
+server-start model_path port=DEFAULT_PORT ctx="4096":
+	@echo "Iniciando llama-server (modelo: {{model_path}}, porta: {{port}}, ctx: {{ctx}})..."
+	llama-server \
+		--model {{model_path}} \
+		--port {{port}} \
+		--ctx-size {{ctx}} \
+		--n-gpu-layers 99 \
+		--parallel 2 \
+		> .llama_server.log 2>&1 &
+	echo $! > .llama_server.pid
+	@echo "llama-server iniciado (PID: $(cat .llama_server.pid)). Log em .llama_server.log"
+	@echo "Aguardando servidor ficar pronto..."
+	sleep 8
 
-# Roda a extração do grafo
-# Flags extras opcionais: --max-concurrency, --token-budget
-# Uso: just graphify-extract            (usa default)
-#      just graphify-extract meu-modelo:7b
-#      just graphify-extract meu-modelo:7b --max-concurrency 2 --token-budget 8192
-graphify-extract model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
-	@echo "Executando extração do graphify em subpastas (modelo: {{model}})..."
-	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=16384 OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/docs --out graphify-docs --backend openai {{args}}
-	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=16384 OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/code --out graphify-code --backend openai {{args}}
+# Para o servidor llama.cpp usando o PID salvo em .llama_server.pid
+server-stop:
+	@if [ -f .llama_server.pid ]; then \
+		PID=$(cat .llama_server.pid); \
+		echo "Parando llama-server (PID: $$PID)..."; \
+		kill $$PID 2>/dev/null || true; \
+		rm -f .llama_server.pid; \
+		echo "llama-server parado."; \
+	else \
+		echo "Nenhum PID encontrado (.llama_server.pid não existe). Servidor já estava parado?"; \
+	fi
+
+# ─── Pipeline principal ───────────────────────────────────────────────────────
+
+# Etapa de conversão — sobe o servidor, enriquece o código e derruba.
+# model_path: caminho para o arquivo .gguf do modelo
+# Uso: just convert path/to/model.gguf
+#      just convert path/to/model.gguf 8080
+#      just convert path/to/model.gguf 8080 --skip-code-llm
+convert model_path port=DEFAULT_PORT *args:
+	@echo "Iniciando etapa de conversão (modelo: {{model_path}}, porta: {{port}})..."
+	just server-start {{model_path}} {{port}}
+	LLAMA_SERVER_PORT={{port}} .venv/bin/python main.py \
+		--code data/code --past data/past --docs data/docs --tests data/tests.txt \
+		--convert --model {{model_path}} {{args}}
+	just server-stop
+
+# Extração do grafo — o servidor deve estar rodando (server-start).
+# Uso: just graphify-extract path/to/model.gguf
+#      just graphify-extract path/to/model.gguf 8080 --max-concurrency 2 --token-budget 8192
+graphify-extract model_path port=DEFAULT_PORT *args:
+	@echo "Executando extração do graphify (modelo: {{model_path}}, porta: {{port}})..."
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=4096 \
+		OPENAI_BASE_URL=http://localhost:{{port}}/v1 OPENAI_API_KEY=llama-cpp OPENAI_MODEL={{model_path}} \
+		.venv/bin/python -m graphify extract .graphify_input/docs --out graphify-docs --backend openai {{args}}
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=4096 \
+		OPENAI_BASE_URL=http://localhost:{{port}}/v1 OPENAI_API_KEY=llama-cpp OPENAI_MODEL={{model_path}} \
+		.venv/bin/python -m graphify extract .graphify_input/code --out graphify-code --backend openai {{args}}
 	@echo "Mesclando os grafos..."
 	mkdir -p graphify-out
-	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=16384 OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify merge-graphs graphify-docs/graphify-out/graph.json graphify-code/graphify-out/graph.json --out graphify-out/graph.json
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=4096 \
+		OPENAI_BASE_URL=http://localhost:{{port}}/v1 OPENAI_API_KEY=llama-cpp OPENAI_MODEL={{model_path}} \
+		.venv/bin/python -m graphify merge-graphs graphify-docs/graphify-out/graph.json graphify-code/graphify-out/graph.json --out graphify-out/graph.json
 	@echo "Gerando clusters..."
-	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=16384 OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify cluster-only . --backend openai
+	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=4096 \
+		OPENAI_BASE_URL=http://localhost:{{port}}/v1 OPENAI_API_KEY=llama-cpp OPENAI_MODEL={{model_path}} \
+		.venv/bin/python -m graphify cluster-only . --backend openai
 	@echo "Exportando HTML..."
 	GRAPHIFY_VIZ_NODE_LIMIT=25000 .venv/bin/python -m graphify export html .
 
-# Roda a ingestão vetorial no ChromaDB
-# Uso: just ingestion            (usa MobiusDevelopment/Bonsai-27B-Q1_0-gguf)
-#      just ingestion meu-modelo:7b
-#      just ingestion meu-modelo:7b --no-past
-ingestion model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
-	@echo "Iniciando etapa de indexação vetorial (modelo: {{model}})..."
-	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --ingestion --model {{model}} {{args}}
+# Ingestão vetorial — sobe o servidor, indexa e derruba.
+# Uso: just ingestion path/to/model.gguf
+#      just ingestion path/to/model.gguf 8080 --no-past
+ingestion model_path port=DEFAULT_PORT *args:
+	@echo "Iniciando etapa de indexação vetorial (modelo: {{model_path}}, porta: {{port}})..."
+	just server-start {{model_path}} {{port}}
+	LLAMA_SERVER_PORT={{port}} .venv/bin/python main.py \
+		--code data/code --past data/past --docs data/docs --tests data/tests.txt \
+		--ingestion --model {{model_path}} {{args}}
+	just server-stop
 
-# Roda o RAG
-# Uso: just run                          (modelo e chunks default)
-#      just run meu-modelo:7b            (modelo custom)
-#      just run meu-modelo:7b 30         (modelo custom + 30 chunks)
-#      just run meu-modelo:7b 30 --no-past
-run model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" num_chunks="20" *args:
-	@echo "Iniciando orquestração RAG híbrido (modelo: {{model}}, chunks: {{num_chunks}})..."
-	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --run --model {{model}} --num-chunks {{num_chunks}} {{args}}
+# Etapa RAG — sobe o servidor, gera os pareceres e derruba.
+# Uso: just run path/to/model.gguf
+#      just run path/to/model.gguf 8080 20
+#      just run path/to/model.gguf 8080 20 --no-past
+run model_path port=DEFAULT_PORT num_chunks=DEFAULT_CHUNKS *args:
+	@echo "Iniciando orquestração RAG híbrido (modelo: {{model_path}}, porta: {{port}}, chunks: {{num_chunks}})..."
+	just server-start {{model_path}} {{port}}
+	LLAMA_SERVER_PORT={{port}} .venv/bin/python main.py \
+		--code data/code --past data/past --docs data/docs --tests data/tests.txt \
+		--run --model {{model_path}} --num-chunks {{num_chunks}} {{args}}
+	just server-stop
 
-# Executa todo o pipeline sequencialmente
-# Uso: just all                           (tudo com defaults)
-#      just all meu-modelo:7b            (modelo custom)
-#      just all meu-modelo:7b 30         (modelo custom + 30 chunks no run)
-all model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" num_chunks="20":
-	just convert {{model}} --skip-code-llm
-	just graphify-extract {{model}} --max-concurrency 2 --token-budget 8192
-	just ingestion {{model}} --no-past
-	just run {{model}} {{num_chunks}} --no-past
+# ─── Pipeline completo ────────────────────────────────────────────────────────
+# Sobe/derruba o servidor automaticamente em cada etapa.
+# Uso: just all path/to/model.gguf
+#      just all path/to/model.gguf 8080
+#      just all path/to/model.gguf 8080 20
+#      just all path/to/model.gguf 8080 20 4096   (ctx size)
+all model_path port=DEFAULT_PORT num_chunks=DEFAULT_CHUNKS ctx="4096":
+	just convert {{model_path}} {{port}} --skip-code-llm
+	just server-start {{model_path}} {{port}} {{ctx}}
+	just graphify-extract {{model_path}} {{port}} --max-concurrency 2 --token-budget 8192
+	just server-stop
+	just ingestion {{model_path}} {{port}} --no-past
+	just run {{model_path}} {{port}} {{num_chunks}} --no-past
 
-# Roda a conversão para os dados de teste
-test-convert model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
-	@echo "Iniciando etapa de conversão (TEST, modelo: {{model}})..."
-	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --convert --model {{model}} {{args}}
+# ─── Receitas de teste ────────────────────────────────────────────────────────
+test-convert model_path port=DEFAULT_PORT *args:
+	@echo "Iniciando etapa de conversão (TEST, modelo: {{model_path}}, porta: {{port}})..."
+	just server-start {{model_path}} {{port}}
+	LLAMA_SERVER_PORT={{port}} .venv/bin/python main.py \
+		--code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt \
+		--convert --model {{model_path}} {{args}}
+	just server-stop
 
-# Roda a ingestão vetorial no ChromaDB para os dados de teste
-test-ingest model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
-	@echo "Iniciando etapa de indexação vetorial (TEST, modelo: {{model}})..."
-	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --ingestion --token-budget 500 --model {{model}} {{args}}
+test-ingest model_path port=DEFAULT_PORT *args:
+	@echo "Iniciando etapa de indexação vetorial (TEST, modelo: {{model_path}}, porta: {{port}})..."
+	just server-start {{model_path}} {{port}}
+	LLAMA_SERVER_PORT={{port}} .venv/bin/python main.py \
+		--code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt \
+		--ingestion --token-budget 500 --model {{model_path}} {{args}}
+	just server-stop
 
-# Roda o RAG para os dados de teste
-test-run model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" num_chunks="20" *args:
-	@echo "Iniciando orquestração RAG híbrido (TEST, modelo: {{model}}, chunks: {{num_chunks}})..."
-	.venv/bin/python main.py --code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt --run --model {{model}} --num-chunks {{num_chunks}} {{args}}
+test-run model_path port=DEFAULT_PORT num_chunks=DEFAULT_CHUNKS *args:
+	@echo "Iniciando orquestração RAG híbrido (TEST, modelo: {{model_path}}, porta: {{port}}, chunks: {{num_chunks}})..."
+	just server-start {{model_path}} {{port}}
+	LLAMA_SERVER_PORT={{port}} .venv/bin/python main.py \
+		--code tests/code --past tests/past --docs tests/docs --tests tests/tests.txt \
+		--run --model {{model_path}} --num-chunks {{num_chunks}} {{args}}
+	just server-stop

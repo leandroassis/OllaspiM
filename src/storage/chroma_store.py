@@ -1,30 +1,42 @@
 import chromadb
+import os
 from typing import Any, Dict, List
 from src.utils.logger import logger
-from src.llm.ollama_client import OllamaClient
+from src.llm.ollama_client import LLMClient
 
 from llama_index.core import VectorStoreIndex, Document, StorageContext, Settings
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.embeddings.ollama import OllamaEmbedding
-from llama_index.llms.ollama import Ollama
+from llama_index.llms.openai_like import OpenAILike
 
 class ChromaStore:
     """Implementation of Vector Store using LlamaIndex over ChromaDB for dynamic collections."""
     
-    def __init__(self, persist_directory: str = "./chroma_db", token_budget: int = 512, model: str = "MobiusDevelopment/Bonsai-27B-Q1_0-gguf"):
+    def __init__(self, persist_directory: str = "./chroma_db", token_budget: int = 512, model: str = "local-model"):
         self.persist_directory = persist_directory
         self.token_budget = token_budget
         self.model = model
-        self.llm_interpreter = OllamaClient(model=model)
+        self.llm_interpreter = LLMClient(model=model)
         try:
-            # Configuração Global do LlamaIndex para evitar fallback pro OpenAI
+            llama_server_port = int(os.environ.get("LLAMA_SERVER_PORT", "8080"))
+            llama_server_url = f"http://localhost:{llama_server_port}/v1"
+            
+            # Configuração Global do LlamaIndex
+            # Embeddings: Ollama (porta 11434) — modelo leve, separado da LLM principal
+            # LLM:        llama-server (porta configurável) — modelo principal
             Settings.embed_model = OllamaEmbedding(model_name="nomic-embed-text")
-            Settings.llm = Ollama(model=model, request_timeout=120.0)
+            Settings.llm = OpenAILike(
+                model=model,
+                api_base=llama_server_url,
+                api_key="llama-cpp",
+                is_chat_model=True,
+                request_timeout=300.0,
+            )
             Settings.chunk_size = 8192
             Settings.chunk_overlap = 5
             
             self.db = chromadb.PersistentClient(path=self.persist_directory)
-            logger.info(f"Conectado ao ChromaDB em {self.persist_directory} (modelo: {model})")
+            logger.info(f"Conectado ao ChromaDB em {self.persist_directory} (llm: {llama_server_url}, model: {model})")
         except Exception as e:
             logger.error(f"Erro ao inicializar ChromaDB: {e}")
             raise
