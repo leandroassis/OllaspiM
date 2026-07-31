@@ -27,6 +27,11 @@ convert model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	@echo "Iniciando etapa de conversão (modelo: {{model}})..."
 	.venv/bin/python main.py --code data/code --past data/past --docs data/docs --tests data/tests.txt --convert --model {{model}} {{args}}
 
+# Roda a extração do grafo
+# Flags extras opcionais: --max-concurrency, --token-budget
+# Uso: just graphify-extract            (usa default)
+#      just graphify-extract meu-modelo:7b
+#      just graphify-extract meu-modelo:7b --max-concurrency 2 --token-budget 8192
 graphify-extract model="MobiusDevelopment/Bonsai-27B-Q1_0-gguf" *args:
 	@echo "Executando extração do graphify em subpastas (modelo: {{model}})..."
 	OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama OPENAI_MODEL={{model}} .venv/bin/python -m graphify extract .graphify_input/docs --out graphify-docs --backend openai {{args}}
