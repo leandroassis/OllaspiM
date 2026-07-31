@@ -73,6 +73,7 @@ convert model_path port=DEFAULT_PORT *args:
 # Uso: just graphify-extract path/to/model.gguf
 #      just graphify-extract path/to/model.gguf 8080 --max-concurrency 2 --token-budget 8192
 graphify-extract model_path port=DEFAULT_PORT ctx=MAX_CTX *args:
+	just server-start {{model_path}} {{port}}
 	@echo "Executando extração do graphify (modelo: {{model_path}}, porta: {{port}})..."
 	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX=ctx \
 		OPENAI_BASE_URL=http://localhost:{{port}}/v1 OPENAI_API_KEY=llama-cpp OPENAI_MODEL={{model_path}} \
@@ -91,6 +92,7 @@ graphify-extract model_path port=DEFAULT_PORT ctx=MAX_CTX *args:
 		.venv/bin/python -m graphify cluster-only . --backend openai
 	@echo "Exportando HTML..."
 	GRAPHIFY_VIZ_NODE_LIMIT=25000 .venv/bin/python -m graphify export html .
+	just server-stop
 
 # Ingestão vetorial — sobe o servidor, indexa e derruba.
 # Uso: just ingestion path/to/model.gguf
