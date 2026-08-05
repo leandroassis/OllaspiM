@@ -14,6 +14,7 @@ from src.ingestion.code_enricher import CodeEnricher
 from src.storage.chroma_store import ChromaStore
 from src.worker.orchestrator import WorkerOrchestrator
 from src.rag.hybrid_retriever import HybridRetriever
+from src.rag.vector_retriever import VectorRetriever
 from src.rag.generator import ReportGenerator
 from src.llm.ollama_client import OllamaClient
 
@@ -256,8 +257,8 @@ def main():
             valid_tests = orchestrator.filter_automatable_tests(test_ids)
             
             store = ChromaStore(model=args.model)
-            # HybridRetriever now takes ChromaStore and the path to graph.json
-            retriever = HybridRetriever(graph_json_path="graphify-out/graph.json", vector_store=store, llm_client=llm_gen)
+            # Usando VectorRetriever em vez de HybridRetriever para busca direta (SOLID)
+            retriever = VectorRetriever(vector_store=store, llm_client=llm_gen)
             generator = ReportGenerator(retriever, llm_gen)
             
             for test in tqdm(valid_tests, desc="RUN Pareceres"):

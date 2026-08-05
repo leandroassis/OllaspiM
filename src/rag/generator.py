@@ -1,8 +1,11 @@
-from typing import Dict, Any
-from src.rag.hybrid_retriever import HybridRetriever
+from typing import Dict, Any, Protocol, Tuple
 from src.llm.ollama_client import OllamaClient
 from src.utils.logger import logger
 from pydantic import BaseModel, Field
+
+class RetrieverProtocol(Protocol):
+    def retrieve_context(self, test_id: str, test_description: str, no_past: bool = False, num_chunks: int = 20) -> Tuple[str, str]:
+        ...
 
 class AnalisePreliminar(BaseModel):
     analise_tecnica: str = Field(description="Análise técnica baseada exclusivamente no código e documentação recuperados do projeto, citando os arquivos de origem.")
@@ -14,7 +17,7 @@ class ParecerOutput(BaseModel):
 class ReportGenerator:
     """Generates the final test report (Parecer) using a 2-Step Synthesis (Phase 5)."""
     
-    def __init__(self, retriever: HybridRetriever, llm_client: OllamaClient = None):
+    def __init__(self, retriever: RetrieverProtocol, llm_client: OllamaClient = None):
         self.retriever = retriever
         self.llm = llm_client or OllamaClient(model="qwen2.5-coder:7b-instruct")
         
@@ -28,17 +31,17 @@ class ReportGenerator:
         # FASE 5a: Análise Técnica Pura (Projeto)
         prompt_5a = f"""
 Você é um auditor de validação de sistemas embarcados.
-Sua missão é redigir um ÚNICO texto dissertativo coeso avaliando se o equipamento atende ao Objetivo do Ensaio. 
+Sua missão é redigir um ÚNICO texto dissertativo coeso avaliando se o equipamento atende ao Requisito de Entrada do Ensaio. 
 Para isso, você deve utilizar o [Contexto Semântico] para entendimento e raciocínio técnico.
-Obrigatóriamente, você deve utilizar trechos exatos da [Evidência Bruta para Citação] ao mencionar limites numéricos, nomes de variáveis ou funções.
+Como não há evidência bruta fornecida, baseie sua análise puramente no contexto semântico.
 
 ID do Ensaio: {test_id}
-Objetivo: {test_description}
+Requisito de Entrada (Objetivo): {test_description}
 
-=== DADOS DO PROJETO (Restritos via Grafo e Limitados a {num_chunks} Chunks) ===
+=== DADOS DO PROJETO (Limitados a {num_chunks} Chunks) ===
 {projeto_ctx}
 
-Redija sua análise técnica no formato de uma dissertação única e fluida. CITE explicitamente o nome de cada arquivo (usando a tag [Arquivo Origem: X]) ao longo do seu texto para fundamentar suas conclusões técnicas com base na evidência bruta. Não divida a resposta em tópicos soltos.
+Redija sua análise técnica no formato de uma dissertação única e fluida. CITE explicitamente o nome de cada arquivo (usando a tag [Arquivo Origem: X]) ao longo do seu texto para fundamentar suas conclusões técnicas com base no contexto. Não divida a resposta em tópicos soltos.
 """
         logger.info(f"[{test_id}] Executando Fase 5a (Análise Técnica Pura)...")
         try:

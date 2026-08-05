@@ -7,7 +7,7 @@ from src.utils.logger import logger
 
 def parse_args(args=None) -> argparse.Namespace:
     """Parses command line arguments."""
-    parser = argparse.ArgumentParser(description="LaspiLM - AI Test Analyzer (GraphRAG + Vector RAG)")
+    parser = argparse.ArgumentParser(description="LaspiLM - AI Test Analyzer (Vector RAG)")
     
     parser.add_argument("--docs", type=str, required=True, help="Caminho do diretório de documentação.")
     parser.add_argument("--code", type=str, required=True, help="Caminho do diretório do código-fonte.")
