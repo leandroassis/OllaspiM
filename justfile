@@ -78,9 +78,11 @@ graphify-extract model_path port=DEFAULT_PORT ctx=MAX_CTX *args:
 	just server-start {{model_path}} {{port}}
 	@echo "Executando extração do graphify (modelo: {{model_path}}, porta: {{port}})..."
 	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX={{ctx}} \
+		OPENAI_TIMEOUT=3000 \
 		OPENAI_BASE_URL=http://localhost:{{port}}/v1 OPENAI_API_KEY=llama-cpp OPENAI_MODEL={{model_path}} \
 		.venv/bin/python -m graphify extract .graphify_input/docs --out graphify-docs --backend openai {{args}}
 	GRAPHIFY_VIZ_NODE_LIMIT=25000 GRAPHIFY_OLLAMA_NUM_CTX={{ctx}} \
+		OPEANAI_TIMEOUT=3000 \
 		OPENAI_BASE_URL=http://localhost:{{port}}/v1 OPENAI_API_KEY=llama-cpp OPENAI_MODEL={{model_path}} \
 		.venv/bin/python -m graphify extract .graphify_input/code --out graphify-code --backend openai {{args}}
 	@echo "Mesclando os grafos..."
