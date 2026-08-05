@@ -264,7 +264,13 @@ def main():
             for test in tqdm(valid_tests, desc="RUN Pareceres"):
                 tid = test["id"]
                 descricao = test.get("descricao", "Sem descrição")
-                parecer = generator.generate_parecer(tid, descricao, no_past=getattr(args, 'no_past', False), num_chunks=args.num_chunks)
+                parecer = generator.generate_parecer(
+                    tid, 
+                    descricao, 
+                    no_past=getattr(args, 'no_past', False), 
+                    num_chunks=args.num_chunks,
+                    skip_extract_llm=getattr(args, 'skip_extract_llm', False)
+                )
                 
                 logger.info(f"\n{'='*40}\nPARECER FINAL PARA: {tid}\n{parecer}\n{'='*40}")
                 
@@ -279,7 +285,12 @@ def main():
             retriever = VectorRetriever(vector_store=store, llm_client=llm_gen)
             generator = ReportGenerator(retriever, llm_gen)
             
-            resposta = generator.answer_query(args.query, no_past=getattr(args, 'no_past', False), num_chunks=args.num_chunks)
+            resposta = generator.answer_query(
+                args.query, 
+                no_past=getattr(args, 'no_past', False), 
+                num_chunks=args.num_chunks,
+                skip_extract_llm=getattr(args, 'skip_extract_llm', False)
+            )
             
             print(f"\n{'='*40}\nRESPOSTA PARA: {args.query}\n{resposta}\n{'='*40}\n")
             
