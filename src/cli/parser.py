@@ -17,6 +17,7 @@ def parse_args(args=None) -> argparse.Namespace:
     parser.add_argument("--convert", action="store_true", help="Executa a etapa de conversão de documentos e extração de código (Gera os .md).")
     parser.add_argument("--ingestion", action="store_true", help="Executa a ingestão dos dados convertidos no ChromaDB.")
     parser.add_argument("--run", action="store_true", help="Executa a filtragem topológica e o RAG para os testes definidos.")
+    parser.add_argument("--query", type=str, default=None, help="Executa uma consulta direta (pergunta) no pipeline RAG.")
     parser.add_argument("--skip-code-llm", action="store_true", help="Pula a etapa de geração de documentação de código via LLM.")
     parser.add_argument("--token-budget", type=int, default=2048, help="Tamanho máximo (em tokens) dos chunks originais durante a ingestão (default: 512).")
     parser.add_argument("--no-past", action="store_true", help="Desabilita o envio de chunks de relatórios anteriores para o modelo na fase run.")

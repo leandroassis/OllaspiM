@@ -81,3 +81,30 @@ Os pareceres históricos fornecidos servem APENAS como gabarito de estilo de esc
         except Exception as e:
             logger.error(f"[{test_id}] Erro ao gerar parecer final (Fase 5b): {e}")
             return "Erro ao gerar o parecer final."
+
+    def answer_query(self, query: str, no_past: bool = False, num_chunks: int = 20) -> str:
+        """Generates a direct answer to a user query using the RAG pipeline."""
+        logger.info(f"Gerando resposta para query direta (num_chunks={num_chunks})")
+        
+        # Recupera contexto (usando "QUERY" como id fictício)
+        projeto_ctx, legado_ctx = self.retriever.retrieve_context("QUERY", query, no_past, num_chunks=num_chunks)
+        
+        prompt_query = f"""
+Você é um assistente técnico especializado em sistemas embarcados e validação.
+Sua missão é responder à pergunta do usuário de forma clara e objetiva, utilizando o [Contexto Semântico] recuperado da base de conhecimento do projeto.
+Como não há evidência bruta fornecida, baseie sua análise puramente no contexto semântico.
+
+Pergunta: {query}
+
+=== DADOS DO PROJETO (Limitados a {num_chunks} Chunks) ===
+{projeto_ctx}
+
+Responda à pergunta do usuário de forma direta e explicativa. CITE explicitamente o nome de cada arquivo (usando a tag [Arquivo Origem: X]) ao longo da sua resposta para fundamentar suas afirmações com base no contexto.
+"""
+        logger.info(f"[QUERY] Executando geração de resposta...")
+        try:
+            res = self.llm.generate(prompt_query)
+            return res
+        except Exception as e:
+            logger.error(f"[QUERY] Erro ao gerar resposta: {e}")
+            return "Erro ao gerar a resposta."

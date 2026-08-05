@@ -268,8 +268,23 @@ def main():
                 
                 logger.info(f"\n{'='*40}\nPARECER FINAL PARA: {tid}\n{parecer}\n{'='*40}")
                 
+        elif args.query:
+            logger.info("=== ETAPA: QUERY DIRETA RAG ===")
+            logger.info(f"Pergunta: {args.query}")
+            
+            logger.info(f"Inicializando modelos e orquestrador... (modelo: {args.model})")
+            llm_gen = OllamaClient(model=args.model)
+            
+            store = ChromaStore(model=args.model)
+            retriever = VectorRetriever(vector_store=store, llm_client=llm_gen)
+            generator = ReportGenerator(retriever, llm_gen)
+            
+            resposta = generator.answer_query(args.query, no_past=getattr(args, 'no_past', False), num_chunks=args.num_chunks)
+            
+            print(f"\n{'='*40}\nRESPOSTA PARA: {args.query}\n{resposta}\n{'='*40}\n")
+            
         else:
-            logger.error("Nenhuma ação especificada. Use --convert, --ingestion ou --run.")
+            logger.error("Nenhuma ação especificada. Use --convert, --ingestion, --run ou --query.")
             sys.exit(1)
             
     except Exception as e:

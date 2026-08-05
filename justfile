@@ -121,6 +121,17 @@ run model_path port=DEFAULT_PORT num_chunks=DEFAULT_CHUNKS *args:
 		--run --model {{model_path}} --num-chunks {{num_chunks}} {{args}}
 	just server-stop
 
+# Etapa QUERY — sobe o servidor, responde a uma pergunta direta via RAG e derruba.
+# Uso: just query "qual a política de testes?" path/to/model.gguf
+#      just query "..." path/to/model.gguf 8080 20
+query question model_path port=DEFAULT_PORT num_chunks=DEFAULT_CHUNKS *args:
+	@echo "Iniciando query direta RAG (modelo: {{model_path}}, porta: {{port}}, chunks: {{num_chunks}})..."
+	just server-start {{model_path}} {{port}}
+	LLAMA_SERVER_PORT={{port}} .venv/bin/python main.py \
+		--code data/code --past data/past --docs data/docs --tests data/tests.txt \
+		--query "{{question}}" --model {{model_path}} --num-chunks {{num_chunks}} {{args}}
+	just server-stop
+
 # ─── Pipeline completo ────────────────────────────────────────────────────────
 # Sobe/derruba o servidor automaticamente em cada etapa.
 # Uso: just all path/to/model.gguf
