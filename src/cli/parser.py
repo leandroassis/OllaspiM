@@ -19,6 +19,7 @@ def parse_args(args=None) -> argparse.Namespace:
     parser.add_argument("--run", action="store_true", help="Executa a filtragem topológica e o RAG para os testes definidos.")
     parser.add_argument("--query", type=str, default=None, help="Executa uma consulta direta (pergunta) no pipeline RAG.")
     parser.add_argument("--skip-code-llm", action="store_true", help="Pula a etapa de geração de documentação de código via LLM.")
+    parser.add_argument("--skip-extract-llm", action="store_true", help="Pula a etapa de extração de palavras principais usando LLM.")
     parser.add_argument("--token-budget", type=int, default=2048, help="Tamanho máximo (em tokens) dos chunks originais durante a ingestão (default: 512).")
     parser.add_argument("--no-past", action="store_true", help="Desabilita o envio de chunks de relatórios anteriores para o modelo na fase run.")
     parser.add_argument("--model", type=str, default="MobiusDevelopment/Bonsai-27B-Q1_0-gguf", help="Modelo Ollama a ser utilizado em todas as funções LLM do pipeline (default: MobiusDevelopment/Bonsai-27B-Q1_0-gguf).")

@@ -9,18 +9,46 @@ class VectorRetriever:
         self.vector_store = vector_store
         self.llm = llm_client
         
-    def retrieve_context(self, test_id: str, test_description: str, no_past: bool = False, num_chunks: int = 20) -> Tuple[str, str]:
+    def _extract_entities(self, text: str) -> str:
+        """Extrai termos-chave usando a LLM para focar a busca vetorial."""
+        if not self.llm:
+            return text
+            
+        prompt = (
+            f"Extraia os componentes, requisitos técnicos e palavras-chave fundamentais do seguinte texto.\n"
+            f"Retorne APENAS uma lista curta de palavras-chave separadas por espaço.\n\nTexto: {text}"
+        )
+        try:
+            res = self.llm.generate(prompt)
+            # Tenta limpar separadores (vírgulas ou quebras de linha)
+            res_clean = res.replace("\n", " ").replace(",", " ")
+            keywords = " ".join([t.strip() for t in res_clean.split(" ") if t.strip()])
+            if not keywords:
+                keywords = text
+            return keywords
+        except Exception as e:
+            logger.error(f"Erro ao extrair entidades: {e}")
+            return text
+        
+    def retrieve_context(self, test_id: str, test_description: str, no_past: bool = False, num_chunks: int = 20, skip_extract_llm: bool = False) -> Tuple[str, str]:
         """
-        Executa a busca vetorial diretamente com o requisito de entrada.
+        Executa a busca vetorial com o requisito de entrada.
         Retorna (project_context, legacy_context)
         """
         logger.info(f"Iniciando Recuperação Vetorial Direta para: {test_id}")
         
         project_blocks = []
         try:
-            # Fase Projeto: Busca direta no ChromaDB usando a descrição do ensaio
+            if not skip_extract_llm and self.llm:
+                search_query = self._extract_entities(test_description)
+                logger.info(f"Keywords extraídas para busca: {search_query}")
+            else:
+                search_query = test_description
+                logger.info(f"Busca direta sem extração (skip_extract_llm=True)")
+                
+            # Fase Projeto: Busca no ChromaDB
             retriever = self.vector_store.get_retriever(collection_name="documentation", top_k=num_chunks, filters=None)
-            nodes = retriever.retrieve(test_description)
+            nodes = retriever.retrieve(search_query)
             
             if nodes:
                 source_files_found = list(set([n.node.metadata.get('source_file', 'unknown') for n in nodes]))
